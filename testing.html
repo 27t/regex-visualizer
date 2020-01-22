@@ -1,5 +1,9 @@
 <head>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="js/parse.js"></script>
+<script src="js/nfal.js"></script>
+<script src="js/dotstring.js"></script>
+<script src="http://mdaines.github.io/viz.js/bower_components/viz.js/viz.js"></script>
 </head>
 
 
@@ -12,8 +16,23 @@ $(document).ready(function(){
 
   $("#parse").click(function() {
 	try {
-		parseRegex($("#regex_input")[0].value);
-		$("#err")[0].innerHTML = ""
+		var t0 = performance.now();
+		var tree = parseRegex($("#regex_input")[0].value);
+		var t1 = performance.now();
+		$("#err")[0].innerHTML = "";
+		var NFAl = constructNFAl(tree);
+		var NFA2 = trivialStates(constructNFAl(tree));
+		var t2 = performance.now();
+		console.log(NFAl);
+		var dotstring = toDotString(NFAl);
+		var dotstring2 = toDotString(NFA2);
+		var t3 = performance.now();
+		console.log(dotstring);
+		svg = Viz(dotstring, "svg");
+		svg2 = Viz(dotstring2, "svg");
+		$("#err").html(svg+"<br>"+svg2);
+		var t4 = performance.now();
+		console.log("Parse: " + (t1-t0) + ", NFA: " + (t2-t1) + ", Dot: " + (t3-t2) + ",Viz: " + (t4-t3));
 	}
 	catch(e) {
 		console.log(e);
@@ -26,110 +45,6 @@ $(document).ready(function(){
 
 <script>
 
-// Parsing regular expressions
-// Using standard precedence order: parenthesis > star > concat > or
-function parseRegex(stringo) {
-	var stream = {
-		string: stringo,
-		pos: 0,
-		cur: (function() { return this.string[this.pos]; }),
-		done: (function() { return this.pos == this.string.length; })
-	};
-	var tree = parseExpr(stream);
-	if (!stream.done())
-		throw "Non-empty stream";
-	console.log(tree);
-	return tree;
-}
-
-function parseExpr(stream) {
-	var terms = []
-	while (!stream.done()) {
-		terms.push(parseTerm(stream));
-		if (!stream.done() && stream.cur() == '|')
-			stream.pos++;
-		else
-			break;
-	}
-	if (terms.length == 0)
-		throw "Empty expression";
-	else if (terms.length == 1)
-		return terms[0];
-	else {
-		return {
-			type: "or",
-			value: terms
-		}
-	}
-}
-
-function parseTerm(stream) {
-	var concats = []
-	while (!stream.done()) {
-		concat = parseConcat(stream);
-		if (concat != undefined)
-			concats.push(concat);
-		else
-			break;
-	}
-	if (concats.length == 0)
-		throw "Empty term";
-	else if (concats.length == 1)
-		return concats[0];
-	else {
-		return {
-			type: "concat",
-			value: concats
-		}
-	}
-}
-
-function parseConcat(stream) {
-	var atom = parseAtom(stream);
-	if (atom != undefined && !stream.done() && stream.cur() == "*") {
-		stream.pos++;
-		return {
-			type: "star",
-			value: atom
-		}
-	}
-	else {
-		return atom;
-	}
-}
-
-function parseAtom(stream) {
-	if (stream.done())
-		throw "Missing atom";
-	else if (stream.cur().toUpperCase() != stream.cur().toLowerCase()) { // Is letter
-		stream.pos++;
-		return {
-			type: "letter",
-			value: stream.string[stream.pos-1]
-		}
-	}
-	else if (stream.cur() == '0') {
-		stream.pos++;
-		return {
-			type: "lambda",
-			value: undefined
-		}
-	}
-	else if (stream.cur() == '(') {
-		stream.pos++;
-		var expr = parseExpr(stream);
-		if (!stream.done() && stream.cur() == ')') {
-			stream.pos++;
-			return expr;
-		}
-		else {
-			throw "Missing )"
-		}
-	}
-	else {
-		return undefined;
-	}
-}
 
 main = (function() {
 	function test() {
