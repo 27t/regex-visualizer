@@ -1,0 +1,73 @@
+body {
+	margin: 0;
+}
+
+#header {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+#inp, #options, #next_step, #previous_step, #help {
+	width: 20%;
+	align-items: center;
+}
+
+#options, #next_step, #previous_step, #help {
+	opacity: 0;
+}
+
+#convert {
+	width: 200px;
+	font-size: 20px;
+	margin: 10px auto;
+	display: block;
+}
+
+#regex {
+	width: 200px;
+	font-size: 30px;
+	display: block;
+	margin: 10px auto;
+}
+
+.valid {
+	background-color: green;
+}
+
+.invalid {
+	background-color: red;
+}
+
+#line {
+	display:none;
+	background-color: black;
+	height: 1px;
+	width: 100%;
+	bottom: 0%;
+	opacity: 0;
+	margin: 0;
+}
+
+#options1, #options2 {
+	width: 50%;
+	margin: 10px auto;
+}
+
+#FA {
+	height: 85%;
+	display: none;
+	justify-content: space-between;
+	align-items: center;
+}
+
+svg {
+	margin: 10px auto;
+	pointer-events: none;
+}
+
+p {
+	margin: 0 auto;
+}

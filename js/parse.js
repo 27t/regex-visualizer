@@ -7,11 +7,16 @@ function parseRegex(stringo) {
 		cur: (function() { return this.string[this.pos]; }),
 		done: (function() { return this.pos == this.string.length; })
 	};
-	var tree = parseExpr(stream);
-	if (!stream.done())
-		throw "Non-empty stream";
-	console.log(tree);
-	return tree;
+	try {
+		var tree = parseExpr(stream);
+		if (!stream.done())
+			throw "Non-empty stream";
+		console.log(tree);
+		return tree;
+	}
+	catch {
+		return -1;
+	}
 }
 
 function parseExpr(stream) {

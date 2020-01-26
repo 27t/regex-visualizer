@@ -1,19 +1,19 @@
 // Recursive function for constructing NFAl
 function constructNFAl(tree) {
 	var NFAl = { // Initialize as empty NFA
-		alphabet: new Set(),   // Set containing letters used in expression
-		states: 0,      // Amount of states
-		start: 0,       // Index of starting state
-		edges: [],      // List of map of outgoing edges for each state ////// make edges[i][symbol] set
-		outgoing: [],   // Amount of outgoing edges for each state
-		incoming: [],   // Amount of incoming edges for each state
-		accepting: []   // List of accepting states
+		alphabet: new Set([]), // Set containing letters used in expression
+		states: 0,             // Amount of states
+		start: 0,              // Index of starting state
+		edges: [],             // List of map of outgoing edges for each state
+		outgoing: [],          // Amount of outgoing edges for each state
+		incoming: [],          // Amount of incoming edges for each state
+		accepting: new Set([]) // Set of accepting states
 	}		
 	
 	switch(tree.type) {
 		case "or":
 			NFAl.states++; // Add starting state
-			var oldaccepting = [];
+			var oldaccepting = new Set([]);
 			for (var i = 0; i < tree.value.length; i++) {
 				var NFAltemp = constructNFAl(tree.value[i]); // Build NFA's for all parts
 				NFAltemp.alphabet.forEach(function(val) {
@@ -21,14 +21,14 @@ function constructNFAl(tree) {
 				});
 				mergeEdges(NFAl, NFAltemp);
 				addTransition(0,NFAltemp.start+NFAl.states,"0",NFAl.outgoing,NFAl.incoming,NFAl.edges);
-				oldaccepting.push(NFAltemp.accepting[0] + NFAl.states);
+				oldaccepting.add(NFAltemp.accepting.values().next().value + NFAl.states);
 				NFAl.states += NFAltemp.states;
 			}
 			NFAl.states++; // Add accepting state
 			oldaccepting.forEach(function(val) {
 				addTransition(val,NFAl.states-1,"0",NFAl.outgoing,NFAl.incoming,NFAl.edges);
 			});
-			NFAl.accepting = [NFAl.states-1];
+			NFAl.accepting.add(NFAl.states-1);
 			return NFAl;
 			
 		case "concat":
@@ -43,8 +43,8 @@ function constructNFAl(tree) {
 				else
 					addTransition(prev,NFAltemp.start+NFAl.states,"0",NFAl.outgoing,NFAl.incoming,NFAl.edges);
 				if (i == tree.value.length-1)
-					NFAl.accepting = [NFAltemp.accepting[0]+NFAl.states];
-				var prev = NFAltemp.accepting[0]+NFAl.states;
+					NFAl.accepting.add(NFAltemp.accepting.values().next().value+NFAl.states);
+				var prev = NFAltemp.accepting.values().next().value+NFAl.states;
 				NFAl.states += NFAltemp.states;
 			}
 			return NFAl
@@ -52,9 +52,9 @@ function constructNFAl(tree) {
 		case "star":
 			var NFAltemp = constructNFAl(tree.value); // Build NFA for part to be starred
 			addTransition(NFAltemp.states,NFAltemp.start,"0",NFAltemp.outgoing,NFAltemp.incoming,NFAltemp.edges);
-			addTransition(NFAltemp.accepting[0],NFAltemp.states,"0",NFAltemp.outgoing,NFAltemp.incoming,NFAltemp.edges);
+			addTransition(NFAltemp.accepting.values().next().value,NFAltemp.states,"0",NFAltemp.outgoing,NFAltemp.incoming,NFAltemp.edges);
 			NFAltemp.states++;
-			NFAltemp.accepting = [NFAltemp.states-1];
+			NFAltemp.accepting = new Set([NFAltemp.states-1]);
 			NFAltemp.start = NFAltemp.states-1;
 			return NFAltemp;
 			
@@ -62,12 +62,12 @@ function constructNFAl(tree) {
 			NFAl.alphabet.add(tree.value);
 			NFAl.states = 2;
 			addTransition(0,1,tree.value,NFAl.outgoing,NFAl.incoming,NFAl.edges);
-			NFAl.accepting = [1];
+			NFAl.accepting.add(1);
 			return NFAl;
 			
 		case "lambda":
 			NFAl.states = 1;
-			NFAl.accepting = [0];
+			NFAl.accepting.add(0);
 			return NFAl;
 			
 		default:
@@ -163,7 +163,7 @@ function trivialStates(NFAl) {
 }
 
 function removeTrivialState(NFAl, state, tofr, tag) {
-	if (NFAl.accepting.includes(state) || NFAl.start == state)
+	if (NFAl.accepting.has(state) || NFAl.start == state)
 		return;
 	//if (NFAl.start == state)
 	//	NFAl.start = tofr;
@@ -204,10 +204,17 @@ function removeTrivialState(NFAl, state, tofr, tag) {
 	}
 	if (NFAl.start >= state)
 		NFAl.start--;
-	for (var index in NFAl.accepting) {
-		if (NFAl.accepting[index] >= state)
-			NFAl.accepting[index]--;
+	
+	newAccepting = new Set([]);
+	var it = NFAl.accepting.values();
+	for (var val = it.next().value; val !== undefined; val = it.next().value) {
+		if (val >= state)
+			newAccepting.add(val-1);	
+		else
+			newAccepting.add(val);
 	}
+	NFAl.accepting = newAccepting;
+	
 	for (var i = state; i < NFAl.states; i++) {
 		NFAl.edges[i] = NFAl.edges[i+1];
 		NFAl.outgoing[i] = NFAl.outgoing[i+1];
