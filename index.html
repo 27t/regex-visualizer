@@ -1,13 +1,8 @@
 <head>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-<script src="http://mdaines.github.io/viz.js/bower_components/viz.js/viz.js"></script>
-<script src="js/animation.js"></script>
-<script src="js/util.js"></script>
-<script src="js/parse.js"></script>
-<script src="js/nfal.js"></script>
-<script src="js/dotstring.js"></script>
-<script src="js/nfa.js"></script>
-<script src="js/fatohtml.js"></script>
+<script src="js/viz.js"></script>
+<script src="js/front.js"></script>
+<script src="js/back.js"></script>
 <link rel="stylesheet" type="text/css" href="css/main.css">
 </head>
 
@@ -19,7 +14,7 @@
 
 	</div>
 	<div id="inp">
-		<input id="regex"></input>
+		<input id="regex" maxlength="512"></input>
 		<button disabled id="convert">Convert</button>
 	</div>
 	<div id="next_step">
@@ -35,4 +30,4 @@
 	</div>
 </div>
 <div id="line"></div>
-<div id="FA"><p>test</p></div>
+<div id="FA"></div>
