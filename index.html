@@ -1,24 +1,58 @@
+<!DOCTYPE html>
+
 <head>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-<script src="js/viz.js"></script>
-<script src="js/front.js"></script>
-<script src="js/back.js"></script>
-<link rel="stylesheet" type="text/css" href="css/main.css">
+	<meta charset="utf-8">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+	<script src="js/viz.js"></script>
+	<script src="js/front.js"></script>
+		<script src="js/animation.js"></script>
+	<script src="js/back.js"></script>
+	<link rel="stylesheet" type="text/css" href="css/main.css">
+	<link href='https://fonts.googleapis.com/css?family=Lexend Deca' rel='stylesheet'>
+	<link href='https://fonts.googleapis.com/css?family=Mako' rel='stylesheet'>
+
+	<title>Regex Visualiser</title>
+  <meta name="description" content="Regex Visualiser">
 </head>
 
+<body>
 <div id="header">
 	<div id="help">
 
 	</div>
 	<div id="previous_step">
-
+		<div class="step step2l">
+			<svg width="55px" height="80px" viewBox="0 0 55 80">
+				<path fill="none" stroke="#000000" stroke-width="4px" d="M 25 20 L 7 42 L 25 64"/>
+			</svg>
+			<div class="steptext">Revert to<br>NFA-&lambda;</div>
+		</div>
 	</div>
 	<div id="inp">
-		<input id="regex" maxlength="512"></input>
+		<svg width="202px" height="42px" viewbox="0 0 202 42" id="validBorder">
+			<path class="greenPath" fill="none" stroke="#31eb37" stroke-width="2px" d="M 101 41 L 1 41 L 1 1 L 101 1"/>
+			<path class="greenPath" fill="none" stroke="#31eb37" stroke-width="2px" d="M 101 41 L 201 41 L 201 1 L 101 1"/>
+		</svg>
+		<svg width="202px" height="42px" viewbox="0 0 202 42" id="invalidBorder">
+			<path class="redPath" fill="none" stroke="#e61515" stroke-width="2px" d="M 101 1 L 1 1 L 1 41 L 101 41"/>
+			<path class="redPath" fill="none" stroke="#e61515" stroke-width="2px" d="M 101 1 L 201 1 L 201 41 L 101 41"/>
+		</svg>
+		<input id="regex" maxlength="256"></input>
 		<button disabled id="convert">Convert</button>
 	</div>
 	<div id="next_step">
-
+		<div class="step step1r">
+			<div class="steptext">Remove<br>&lambda;-transitions</div>
+			<svg width="40px" height="80px" viewBox="0 0 40 80">
+				<path fill="none" stroke="#222233" stroke-width="4px" d="M 15 20 L 33 42 L 15 64"/>
+			</svg>
+		</div>
+		<div class="step step2r">
+			<div class="steptext">Remove non-<br>determinism</div>
+			<svg width="40px" height="80px" viewBox="0 0 40 80">
+				<path fill="none" stroke="#222255" stroke-width="4px" d="M 15 20 L 33 42 L 15 64"/>
+			</svg>
+		</div>
 	</div>
 	<div id="options">
 		<div id="options1">
@@ -27,7 +61,14 @@
 		<div id="options2">
 			<button disabled id="options_button">Animation step</button>
 		</div>
+		<div id="options3">
+			<button id="skip_button">Skip animation</button>
+		</div>
 	</div>
 </div>
 <div id="line"></div>
+<p id="step_message"></p>
 <div id="FA"></div>
+</body>
+
+<script> </script>

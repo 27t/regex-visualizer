@@ -57,8 +57,15 @@ function parseTerm(stream) {
 	var concats = []
 	while (!stream.done()) {
 		var concat = parseConcat(stream);
-		if (concat != undefined)
-			concats.push(concat);
+		if (concat != undefined) {
+			if (concat.length == 2) { // In case of +, count as 2 concatsx
+				concats.push(concat[0]);
+				concats.push(concat[1]);
+			}
+			else {
+				concats.push(concat);
+			}
+		}
 		else
 			break;
 	}
@@ -82,6 +89,15 @@ function parseConcat(stream) {
 			type: "star",
 			value: atom
 		}
+	}
+	else if (atom != undefined && !stream.done() && stream.cur() == "+") {
+		stream.pos++;
+		return [ // At least 1, concat of atom and atom*
+			atom, {
+				type: "star",
+				value: atom
+			}
+		]
 	}
 	else {
 		return atom;
@@ -146,13 +162,13 @@ function constructNFAl(tree) {
 					NFAl.alphabet.add(val);
 				});
 				mergeEdges(NFAl, NFAltemp);
-				addTransition(0,NFAltemp.start+NFAl.states,"0",NFAl.outgoing,NFAl.incoming,NFAl.edges);
+				addTransition(NFAl, 0, NFAltemp.start+NFAl.states, "0");
 				oldaccepting.add(NFAltemp.accepting.values().next().value + NFAl.states);
 				NFAl.states += NFAltemp.states;
 			}
 			NFAl.states++; // Add accepting state
 			oldaccepting.forEach(function(val) {
-				addTransition(val,NFAl.states-1,"0",NFAl.outgoing,NFAl.incoming,NFAl.edges);
+				addTransition(NFAl, val, NFAl.states-1, "0");
 			});
 			NFAl.accepting.add(NFAl.states-1);
 			return NFAl;
@@ -167,7 +183,7 @@ function constructNFAl(tree) {
 				if (i == 0)
 					NFAl.start = NFAltemp.start;
 				else
-					addTransition(prev,NFAltemp.start+NFAl.states,"0",NFAl.outgoing,NFAl.incoming,NFAl.edges);
+					addTransition(NFAl,prev,NFAltemp.start+NFAl.states,"0");
 				if (i == tree.value.length-1)
 					NFAl.accepting.add(NFAltemp.accepting.values().next().value+NFAl.states);
 				var prev = NFAltemp.accepting.values().next().value+NFAl.states;
@@ -177,8 +193,8 @@ function constructNFAl(tree) {
 
 		case "star":
 			var NFAltemp = constructNFAl(tree.value); // Build NFA for part to be starred
-			addTransition(NFAltemp.states,NFAltemp.start,"0",NFAltemp.outgoing,NFAltemp.incoming,NFAltemp.edges);
-			addTransition(NFAltemp.accepting.values().next().value,NFAltemp.states,"0",NFAltemp.outgoing,NFAltemp.incoming,NFAltemp.edges);
+			addTransition(NFAltemp,NFAltemp.states,NFAltemp.start,"0");
+			addTransition(NFAltemp,NFAltemp.accepting.values().next().value,NFAltemp.states,"0");
 			NFAltemp.states++;
 			NFAltemp.accepting = new Set([NFAltemp.states-1]);
 			NFAltemp.start = NFAltemp.states-1;
@@ -187,7 +203,7 @@ function constructNFAl(tree) {
 		case "letter":
 			NFAl.alphabet.add(tree.value);
 			NFAl.states = 2;
-			addTransition(0,1,tree.value,NFAl.outgoing,NFAl.incoming,NFAl.edges);
+			addTransition(NFAl,0,1,tree.value);
 			NFAl.accepting.add(1);
 			return NFAl;
 
@@ -208,7 +224,7 @@ function mergeEdges(orig, temp) {
 		if (temp.edges[i] != undefined) {
 			for (var symbol in temp.edges[i]) {
 				temp.edges[i][symbol].forEach(function(value) {
-					addTransition(i+orig.states, value+orig.states, symbol, orig.outgoing, orig.incoming, orig.edges);
+					addTransition(orig,i+orig.states, value+orig.states, symbol);
 				});
 			}
 		}
@@ -257,26 +273,27 @@ function removeTrivialState(NFAl, state, tofr, tag) {
 			for (var symbol in NFAl.edges[i]) {
 				NFAl.edges[i][symbol].forEach(function(value) {
 					if (value == state) {
-						addTransition(i, tofr, symbol, NFAl.outgoing, NFAl.incoming, NFAl.edges);
-						removeTransition(i, state, symbol, NFAl.outgoing, NFAl.incoming, NFAl.edges);
+						addTransition(NFAl, i, tofr, symbol);
+						removeTransition(NFAl, i, state, symbol);
 					}
 				});
 			}
 		}
-		removeTransition(state, tofr, "0", NFAl.outgoing, NFAl.incoming, NFAl.edges);
+		removeTransition(NFAl, state, tofr, "0");
 	}
 	else { // Trivial incoming
 		for (var symbol in NFAl.edges[state]) {
 			NFAl.edges[state][symbol].forEach(function(value) {
-				addTransition(tofr, value, symbol, NFAl.outgoing, NFAl.incoming, NFAl.edges);
-				removeTransition(state, value, symbol, NFAl.outgoing, NFAl.incoming, NFAl.edges);
+				addTransition(NFAl, tofr, value, symbol);
+				removeTransition(NFAl, state, value, symbol);
 			});
 		}
-		removeTransition(tofr, state, "0", NFAl.outgoing, NFAl.incoming, NFAl.edges);
+		removeTransition(NFAl, tofr, state, "0");
 	}
 
+	removeState(NFAl, state);
 	// Update edges array number now that a state has been deleted
-	for (var i = 0; i < NFAl.states; i++) {
+	/*for (var i = 0; i < NFAl.states; i++) {
 		for (var symbol in NFAl.edges[i]) {
 			var newSet = new Set([]);
 			NFAl.edges[i][symbol].forEach(function(value) {
@@ -292,31 +309,49 @@ function removeTrivialState(NFAl, state, tofr, tag) {
 	if (NFAl.start >= state)
 		NFAl.start--;
 
-	var newAccepting = new Set([]);
+	var newaccepting = new Set([]);
 	var it = NFAl.accepting.values();
 	for (var val = it.next().value; val !== undefined; val = it.next().value) {
 		if (val >= state)
-			newAccepting.add(val-1);
+			newaccepting.add(val-1);
 		else
-			newAccepting.add(val);
+			newaccepting.add(val);
 	}
-	NFAl.accepting = newAccepting;
+	NFAl.accepting = newaccepting;
 
 	for (var i = state; i < NFAl.states; i++) {
 		NFAl.edges[i] = NFAl.edges[i+1];
 		NFAl.outgoing[i] = NFAl.outgoing[i+1];
 		NFAl.incoming[i] = NFAl.incoming[i+1];
 	}
-	NFAl.states--;
+	NFAl.states--;*/
 }
 
 /*
 	Functions for NFA: Construct NFA from NFAl by removing lambda transitions
 	and a function to compute lambda closure of states
 */
-
-function removelTransitions(NFAl, ledges, newedges) {
+function removelTransitions(NFAl) {
 	var closure = lClosure(NFAl); // Calculate which states can be reached from which states using only lambda transitions
+	NFAl.ledges = new Set();
+	NFAl.newedges = new Set();
+	NFAl.normaledges = new Set();
+	NFAl.newaccepting = [];
+	for (var i = 0; i < NFAl.states; i++) {
+		if (NFAl.edges[i] == undefined)
+			continue;
+		for (var symbol in NFAl.edges[i]) {
+			if (NFAl.edges[i][symbol] != undefined) {
+				NFAl.edges[i][symbol].forEach(function(val) {
+					if (symbol != "0")
+						NFAl.normaledges.add([i,val,symbol]);
+					else {
+						NFAl.ledges.add([i,val,"0"]);
+					}
+				});
+			}
+		}
+	}
 	for (var i = 0; i < NFAl.states; i++) {
 		closure[i].forEach(function(val) {
 			if (NFAl.edges[val] != undefined) {
@@ -324,23 +359,24 @@ function removelTransitions(NFAl, ledges, newedges) {
 					if (symbol != "0" && NFAl.edges[val][symbol] != undefined) {
 						NFAl.edges[val][symbol].forEach(function(val2) {
 							if (NFAl.edges[i] == undefined || NFAl.edges[i][symbol] == undefined || !NFAl.edges[i][symbol].has(val2)) {
-								newedges.add([i,val2,symbol]);
-								addTransition(i, val2, symbol, NFAl.outgoing, NFAl.incoming, NFAl.edges);
+								if (addTransition(NFAl, i, val2, symbol))
+									NFAl.newedges.add([i,val2,symbol]);
 							}
 						});
 					}
 				}
 			}
-			if (NFAl.accepting.has(val))
+			if (NFAl.accepting.has(val) && !NFAl.accepting.has(i)) {
 				NFAl.accepting.add(i);
+				NFAl.newaccepting.push(i);
+			}
 		});
 	}
 	for (var i = 0; i < NFAl.states; i++) {
 		if (NFAl.edges[i] == undefined || NFAl.edges[i]["0"] == undefined)
 			continue;
 		NFAl.edges[i]["0"].forEach(function(val) {
-			removeTransition(i, val, "0", NFAl.outgoing, NFAl.incoming, NFAl.edges);
-			ledges.add([i,val,"0"]);
+			removeTransition(NFAl, i, val, "0");
 		});
 	}
 	return NFAl;
@@ -368,82 +404,115 @@ function lClosure(NFAl) {
 	return closure;
 }
 
-function animatelTransitions(NFAl) {
-	var normaledges = new Set();
-	var ledges = new Set();
-	var newedges = new Set();
-	var NFA = removelTransitions(deepCopyAutomaton(NFAl), ledges, newedges);
-	for (var i = 0; i < NFAl.states; i++) {
-		if (NFAl.edges[i] == undefined)
-			continue;
-		for (var symbol in NFAl.edges[i]) {
-			if (symbol != "0" && NFAl.edges[i][symbol] != undefined) {
-				NFAl.edges[i][symbol].forEach(function(val) {
-					normaledges.add([i,val,symbol]);
-				});
-			}
+function removeUnreachable(NFA, NFAold) { // Remove unreachable states and their edges, and lower state numbers
+	var reachable = new Set([NFA.start]); // Start state is reachable
+	NFAold.unreachable = [];
+	reachable.forEach(function(val) {
+		if (NFA.edges[val] == undefined)
+			return;
+		for (var symbol in NFA.edges[val]) {
+			NFA.edges[val][symbol].forEach(function(val2) {
+				reachable.add(val2);
+			})
+		}
+	})
+	for (var i = NFA.states-1; i >= 0; i--) {
+		if (!reachable.has(i)) {
+			removeState(NFA, i);
+			NFAold.unreachable.push(i);
 		}
 	}
-
-	dotstring = "digraph automaton {\n"
-	dotstring += "rankdir=LR\n"
-	dotstring += "qi [shape=point, style=invis]; qi\n"
-	NFAl.accepting.forEach(function(val) {
-		dotstring += "node [shape = doublecircle]; " + val + " ;\n";
-	});
-	dotstring += "node [shape=circle];\n";
-	dotstring += "qi -> " + NFAl.start + "[style=bold];\n";
-	newedges.forEach(function(val) {
-		dotstring += val[0] + " -> " + val[1] + " [label = \"" + val[2] + "\"];\n";
-	});
-	normaledges.forEach(function(val) {
-		dotstring += val[0] + " -> " + val[1] + " [label = \"" + val[2] + "\"];\n";
-	})
-	dotstring += "}";
-	console.log(dotstring);
-	return dotstring;
+	return NFA;
 }
 
 /*
 	General functions
 */
-
 function generateAutomata(regex) {
-	instance = { NFAl: constructNFAl(parseRegex(regex_global)) }
-	instance.NFA = {
-		normaledges: new Set(),
-		ledges: new Set(),
-		newedges: new Set()
-	}
-	instance.NFA.NFA = removelTransitions(deepCopyAutomaton(instance.NFAl), instance.NFA.ledges, instance.NFA.newedges)
+	instance = {}
+	instance.NFAl = trivialStates(constructNFAl(parseRegex(regex_global)));
+	instance.NFATransition = removelTransitions(deepCopyAutomaton(instance.NFAl));
+	instance.NFA = removeUnreachable(deepCopyAutomaton(instance.NFATransition), instance.NFATransition);
+	instance.FAobj = [];
+	instance.FAstrings = [];
 }
 
-function addTransition(from, to, symbol, outgoing, incoming, edges) {
-	if (edges[from] == undefined)
-		edges[from] = {};
-	if (edges[from][symbol] == undefined)
-		edges[from][symbol] = new Set([to]);
+function addTransition(FA, from, to, symbol) {
+	if (FA.edges[from] == undefined)
+		FA.edges[from] = {};
+	if (FA.edges[from][symbol] == undefined)
+		FA.edges[from][symbol] = new Set([to]);
 	else {
-		if (edges[from][symbol].has(to))
-			return; // Transition already exists
-		edges[from][symbol].add(to);
+		if (FA.edges[from][symbol].has(to))
+			return false; // Transition already exists
+		FA.edges[from][symbol].add(to);
 	}
-	if (outgoing[from] == undefined)
-		outgoing[from] = 1;
+	if (FA.outgoing[from] == undefined)
+		FA.outgoing[from] = 1;
 	else
-		outgoing[from]++;
-	if (incoming[to] == undefined)
-		incoming[to] = 1;
+		FA.outgoing[from]++;
+	if (FA.incoming[to] == undefined)
+		FA.incoming[to] = 1;
 	else
-		incoming[to]++;
+		FA.incoming[to]++;
+	return true;
 }
 
-function removeTransition(from, to, symbol, outgoing, incoming, edges) {
-	if (edges[from][symbol].has(to)) {
-		outgoing[from]--;
-		incoming[to]--;
-		edges[from][symbol].delete(to);
+function removeTransition(FA, from, to, symbol) {
+	if (FA.edges[from][symbol].has(to)) {
+		FA.outgoing[from]--;
+		FA.incoming[to]--;
+		FA.edges[from][symbol].delete(to);
 	}
+}
+
+function removeState(FA, state) { // Remove a state, corresponding edges, and lower state numbers
+	if (FA.edges[state] != undefined) {
+		for (var symbol in FA.edges[state]) {
+			FA.edges[state][symbol].forEach(function(val) {
+				removeTransition(FA, state, val, symbol);
+			})
+		}
+	}
+
+	// Update edges array number now that a state has been deleted
+	for (var i = 0; i < FA.states; i++) {
+		if (FA.edges[i] == undefined)
+			continue;
+		for (var symbol in FA.edges[i]) {
+			FA.edges[i][symbol].forEach(function(val) {
+				if (val == state)
+					removeTransition(FA, i, state, symbol);
+			})
+		}
+		for (var symbol in FA.edges[i]) {
+			var newSet = new Set([]);
+			FA.edges[i][symbol].forEach(function(value) {
+				if (value >= state)
+					newSet.add(value-1);
+				else
+					newSet.add(value);
+			});
+			FA.edges[i][symbol] = newSet;
+		}
+	}
+	if (FA.start >= state)
+		FA.start--;
+	var newaccepting = new Set([]);
+	var it = FA.accepting.values();
+	for (var val = it.next().value; val !== undefined; val = it.next().value) {
+		if (val >= state)
+			newaccepting.add(val-1);
+		else
+			newaccepting.add(val);
+	}
+	FA.accepting = newaccepting;
+	for (var i = state; i < FA.states; i++) {
+		FA.edges[i] = FA.edges[i+1];
+		FA.outgoing[i] = FA.outgoing[i+1];
+		FA.incoming[i] = FA.incoming[i+1];
+	}
+	FA.states--;
 }
 
 function deepCopyAutomaton(FA) {
@@ -452,8 +521,8 @@ function deepCopyAutomaton(FA) {
 		states: FA.states,                      // Amount of states
 		start: FA.start,                        // Index of starting state
 		edges: [],                              // List of map of outgoing edges for each state
-		outgoing: new Array(FA.outgoing),       // Amount of outgoing edges for each state
-		incoming: new Array(FA.incoming),       // Amount of incoming edges for each state
+		outgoing: Array.from(FA.outgoing),      // Amount of outgoing edges for each state
+		incoming: Array.from(FA.incoming),      // Amount of incoming edges for each state
 		accepting: new Set(FA.accepting)        // Set of accepting states
 	}
 	for (var i = 0; i < FA.states; i++) {
@@ -465,4 +534,18 @@ function deepCopyAutomaton(FA) {
 		}
 	}
 	return copy;
+}
+
+function hasArray(set, array) {
+	var found = false;
+	set.forEach(function(val) {
+		if (!found) {
+			for (var i = 0; i < array.length; i++) {
+				if (array[i] != val[i])
+					return;
+			}
+			found = true;
+	}
+	})
+	return found;
 }

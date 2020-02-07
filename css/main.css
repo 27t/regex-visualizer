@@ -1,21 +1,37 @@
+html {
+	height: 100%;
+}
+
 body {
+	background: linear-gradient(45deg, rgba(252, 129, 192, 0.2), rgba(46, 255, 175, 0.3), rgba(46, 234, 255, 0.3), rgba(35, 213, 171, 0.3));
+	background-size: cover;
 	margin: 0;
 	display: flex;
 	flex-flow: column;
+	width: 100%;
 	height: 100%;
+	background-attachment: fixed;
+
+	font-family: 'Mako' !important;
 }
 
 #header {
 	width: 100%;
+	min-width: 1100px;
 	height: 100%;
+	min-height: 110px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
+	background-color: rgba(255,255,255,0.3);
 }
 
 #inp, #options, #next_step, #previous_step, #help {
 	width: 20%;
+	min-width: 220px;
+	height: 100px;
 	align-items: center;
+	text-align: center;
 }
 
 #options, #next_step, #previous_step, #help {
@@ -30,48 +46,65 @@ body {
 }
 
 #regex {
-	width: 200px;
+	background-color: rgba(255,255,255,0.3);
+	border: 1px solid rgba(170,170,170,0.5);
+	border-radius: 0px;
+	width: 192px;
 	font-size: 30px;
 	display: block;
 	margin: 10px auto;
+	padding: 2px 4px;
 }
 
-.valid {
-	background-color: green;
+#regex:focus {
+	outline: none;
 }
 
-.invalid {
-	background-color: red;
+#validBorder, #invalidBorder {
+	pointer-events: none;
+	position: absolute;
+	transform: translate(-50%);
+	margin: 10px 0 0 0;
+}
+
+.greenPath, .redPath {
+	stroke-dashoffset: 240px;
+	stroke-dasharray: 240px;
+	transition: stroke-dashoffset 1s;
+}
+
+.enabled {
+	stroke-dashoffset: 0px;
 }
 
 #line {
 	display:none;
 	background-color: black;
-	height: 1px;
+	min-height: 1px;
+	min-width: 1100px;
 	width: 100%;
 	bottom: 0%;
 	opacity: 0;
 	margin: 0;
 }
 
-#options1, #options2 {
-	width: 50%;
-	margin: 10px auto;
+#options1, #options2, #options3 {
+	margin: 5px auto;
 }
 
 svg.disappear {
-	-webkit-animation: all 0.9s;
-	animation: all 0.9s;
+	-webkit-animation: disap 0.9s;
+	animation: disap 0.9s;
 	animation-fill-mode: forwards;
 }
 
-@keyframes all {
+@keyframes disap {
 	0% {transform: scale(1)}
 	65% {transform: scale(1.15)}
 	100% {transform: scale(0)}
 }
 
-@-webkit-keyframes all {
+@-webkit-keyframes disap {
 	0% {transform: scale(1)}
 	65% {transform: scale(1.15)}
 	100% {transform: scale(0)}
@@ -82,17 +115,47 @@ p {
 }
 
 #FA {
+	display: none;
+	min-height: 300px;
+	min-width: 1100px;
 	width: 100%;
 	flex: 1 1 auto;
 	position: relative;
 	overflow: hidden;
 }
 
-svg {
+#FA svg {
 	overflow: hidden;
 	position: absolute;
 	top: 0;
 	left: 0;
 	width: 100%;
 	height: 100%;
+}
+
+.step {
+	display: none;
+  flex-direction: row;
+  justify-content: center;
+	height: 80px;
+	width: 190px;
+	margin: 0 auto;
+	border: 1px solid rgb(15,105,102);
+}
+
+.step:hover {
+	cursor: pointer;
+}
+
+.steptext {
+	font-size: 24px;
+	font-weight: 800;
+	color: rgba(15,105,102,1);
+	display: flex;
+	justify-content: center;
+	flex-direction: column;
+}
+
+#step_message {
+	height: 24px;
 }
