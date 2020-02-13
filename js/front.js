@@ -15,13 +15,8 @@ $(document).ready(function(){
 	loadSvgInteraction(); // Load panning and zooming events
 	$("#regex").on("input", onRegexChange);
 	$("#convert").click(onConvertRegex);
-	$(".step1r").click(toNFA);
-	//$(".step2r").click(toDFA);
-	//$(".step3r").click(toDFAm);
-	//$(".step2l").click(revertNFAl);
-	//$(".step3l").click(revertNFA);
-	//$(".step4l").click(revertDFA);
-
+	$(".step").click(clickStepButton);
+	
 	$("#options_check").change(function() {
 		auto_animation = this.checked;
 		if (auto_animation) {
@@ -79,6 +74,7 @@ function onConvertRegex() {
 	if (parsed === -1) // Invalid expression
 		return;
 
+	in_animation = true;
 	$(".step").css("display", "none");
 	regex_global = $("#regex").val();
 	var p1;
@@ -104,26 +100,51 @@ function onConvertRegex() {
 		instance.FAstrings[1] = viz.renderSVGElement(toDotString(instance.NFATransition, 1));
 		instance.FAstrings[2] = viz.renderSVGElement(toDotString(instance.NFA, 0));
 	}
-	$.when(instance.FAstrings[0],p1).then(function(element) { // Element contains the svg element
+	instance.FAstrings[3] = viz.renderSVGElement(toDotString(instance.DFA, 0));
+	if (instance.DFA.states == instance.DFAm.states) // DFA was already minimal
+		instance.FAstrings[4] = instance.FAstrings[3]
+	else // DFA was not yet minimal. Create new svg for minimal DFA
+		instance.FAstrings[4] = viz.renderSVGElement(toDotString(instance.DFAm, 0));
+	$.when(p1).then(function() {
+		return showFAWrap(0);
+	}).then(function() {
+		showStepButtons(1);
+	})
+	/*$.when(instance.FAstrings[0],p1).then(function(element) { // Element contains the svg element
 			instance.FAobj[0] = FAToHTML(instance.NFAl, element);
 			makeInvisible(instance.FAobj[0]);
 			$("#FA").html(instance.FAobj[0].svg);
 			updateScale();
 			animationWrap(showFA, [instance.FAobj[0]], 0).then(function() {
-				$(".step1r").css({"display": "flex", "opacity": 0}).animate({"opacity": 1}, 800);
+				showStepButtons(1);
 			});
-	})
+	})*/
 }
 
 /*
-	Convert NFAl to NFA by removing l-transitions
-	(and updating accepting states and removing unreachable states)
+	Wrapper functions for the main animations:
+	- Show NFAl, NFA, DFA or DFAm
+	- Convert NFAl to NFA to DFA to DFAm
 */
+
+function showFAWrap(type) { // type=0: NFAl, 2: NFA, 3: DFA, 4: DFAm
+	in_animation = true;
+	return $.when(instance.FAstrings[type]).then(function(element) { // Element contains the svg element
+		var FA = type == 0 ? instance.NFAl
+					 : type == 2 ? instance.NFA
+					 : type == 3 ? instance.DFA
+					 : instance.DFAm;
+		instance.FAobj[type] = FAToHTML(FA, element);
+		makeInvisible(instance.FAobj[type]);
+		$("#FA").html(instance.FAobj[type].svg);
+		updateScale();
+		return animationWrap(showFA, [instance.FAobj[type]], type);
+	})
+}
+
 function toNFA() {
-	$(".step1r").animate({"opacity": 0}, 200).promise().then(function() {
-		$(".step1r").css("display", "none");
-	});
-	$.when(instance.FAstrings[1], instance.FAstrings[2]).then(function(element1, element2) { // Check if needed svg's have been rendered
+	in_animation = true;
+	return $.when(instance.FAstrings[1], instance.FAstrings[2]).then(function(element1, element2) { // Check if needed svg's have been rendered
 		if (instance.NFATransition.ledges.size != 0) {
 			instance.FAobj[1] = FAToHTML(instance.NFATransition, element1, 1);
 			hideNewEdges(instance.FAobj[1]);
@@ -132,9 +153,25 @@ function toNFA() {
 			instance.FAobj[1] = undefined;
 		}
 		instance.FAobj[2] = FAToHTML(instance.NFA, element2);
-		animationWrap(animToNFAStart, [instance.FAobj], 2).then(function() {
-		});
+		return animationWrap(animToNFAStart, [instance.FAobj], 2);
 	});
+}
+
+function toDFA() {
+	in_animation = true;
+	return $.when(instance.FAstrings[3]).then(function(element) { // Check if needed svg has been rendered
+		instance.FAobj[3] = FAToHTML(instance.DFA, element);
+		makeInvisible(instance.FAobj[3]);
+		return animationWrap(animToDFAStart, [instance], 3);
+	})
+}
+
+function toDFAm() {
+	in_animation = true;
+	return $.when(instance.FAstrings[4]).then(function(element) { // Check if needed svg has been rendered
+		instance.FAobj[4] = FAToHTML(instance.DFAm, element);
+		return animationWrap(animToDFAmStart, [instance], 4);
+	})
 }
 
 function updateScale() {
@@ -153,6 +190,8 @@ function loadSvgInteraction() {
 	var panning = false;
 	var holdingIndex; // Value of the state currently being held
 	var oldX, oldY;
+	var nodeSelected = true;
+	var savedThis, savedNext;
 
 	$(document).mouseup(function() {
 		holdingNode = false;
@@ -174,7 +213,8 @@ function loadSvgInteraction() {
 		}
 	})
 
-	$(document).on("wheel mousewheel", "#FA svg", function(e) {
+	$("#FA").on("wheel mousewheel", "svg", function(e) {
+		e.preventDefault(); // Don't also scroll the window
 		var delta;
 		if (e.originalEvent.wheelDelta !== undefined)
     	delta = e.originalEvent.wheelDelta;
@@ -205,6 +245,33 @@ function loadSvgInteraction() {
 		this.viewBox.baseVal.x = mouseX - (mouseX-this.viewBox.baseVal.x)*zoomscale;
 		this.viewBox.baseVal.y = mouseY - (mouseY-this.viewBox.baseVal.y)*zoomscale;
 		updateScale();
+	})
+
+	$(document).on("mouseenter", ".node", function(e) {
+		if (!nodeSelected && !in_animation) {
+			nodeSelected = true;
+			savedThis = this;
+			$(this).parent().prepend($(this).parent().children().filter(".edge")); // Move edges to background
+			$(".info_path", savedThis).addClass("info_selected")
+			$("ellipse", savedThis).eq(0).addClass("selected_big");
+			if ($("ellipse", savedThis).length == 2) // Accepting state, 2 ellipses
+				$("ellipse", savedThis).eq(1).addClass("selected_small");
+		}
+	})
+
+	$(document).on("mouseleave", ".node", function(e) {
+		if (nodeSelected) {
+			nodeSelected = false;
+			$(".info_path", savedThis).removeClass("info_selected")
+			$("ellipse", savedThis).eq(0).removeClass("selected_big");
+			if ($("ellipse", savedThis).length == 2) // Accepting state, 2 ellipses
+				$("ellipse", savedThis).eq(1).removeClass("selected_small");
+			$(savedThis).delay(1500).promise().then(function() {
+				// If no state selected after transition is done (1.5s), move edges to foreground again
+				if (!nodeSelected)
+					$(this).parent().append($(this).parent().children().filter(".edge"));
+			})
+		}
 	})
 
 	/*
@@ -275,35 +342,35 @@ function makeInvisible(FAobj) { // Make all nodes, edges, text hidden
 }
 
 function hideNewEdges(FAobj) {
-	for (var i = 0; i < FAobj.newedges.length; i++) {
-		for (var symbol in FAobj.newedges[i]) {
-			FAobj.newedges[i][symbol].forEach(function(val) {
-				var path = $("path", val[1]);
+	for (var from in FAobj.newedges) {
+		for (var to in FAobj.newedges[from]) {
+			var edge = FAobj.edges[from][to][1];
+			if (FAobj.edges[from][to][0].length == 0) {
+				var path = $("path", edge);
 				path.css('stroke-dashoffset', path[0].lengthsaved);
-				$("polygon", val[1]).attr("visibility", "hidden");
-				$("text", val[1]).css("opacity", 0);
-			});
+				$("polygon", edge).attr("visibility", "hidden");
+				$("text", edge).css("opacity", 0);
+			}
+			else {
+				$("text", edge).text(FAobj.edges[from][to][0].join(","));
+			}
 		}
 	}
 }
 
-function replaceLNewEdges(FAobj) {
-	for (var i = 0; i < FAobj.edges.length; i++) {
-		if (FAobj.edges[i]["0"] != undefined)
-			delete FAobj.edges[i]["0"];
-		for (var symbol in FAobj.newedges[i]) {
-			FAobj.newedges[i][symbol].forEach(function(val) {
-				if (FAobj.edges[i][symbol] == undefined)
-					FAobj.edges[i][symbol] = new Set();
-				FAobj.edges[i][symbol].add(val);
-			})
+/*function replaceLNewEdges(FAobj) {
+	for (var from in FAobj.edges) {
+		for (var to in FAobj.edges[from]) {
+			var index = FAobj.edges[from][to][0].indexOf("0");
+			if (index != -1)
+				FAobj.edges[from][to][0].splice(index, 1);
+			FAobj.edges[from][to][0] = FAobj.edges[from][to][0].concat(FAobj.newedges[from][to]);
 		}
 	}
-}
+}*/
 
 function toDotString(FA, flag) { // Generate a dotstring for a FA
 	// flag is 1 if this is for the combination of NFAl and NFAl
-	// in this case 3 types of edges in known order
 	var dotstring = "digraph automaton {\n"
 	dotstring += "rankdir=LR\n"
 	dotstring += "qi [shape=point, style=invis]; qi\n"
@@ -314,24 +381,47 @@ function toDotString(FA, flag) { // Generate a dotstring for a FA
 	if (!flag) {
 		for (var i = 0; i < FA.edges.length; i++) {
 			if (FA.edges[i] != undefined) {
+				var todict = {};
 				for (var symbol in FA.edges[i]) {
 					FA.edges[i][symbol].forEach(function(val) {
-						dotstring += i + " -> " + val + " [label = \"" + symbol + "\"];\n";
+						if (todict[val] == undefined)
+							todict[val] = [];
+						todict[val].push(symbol)
 					});
+					/*FA.edges[i][symbol].forEach(function(val) {
+						dotstring += i + " -> " + val + " [label = \"" + symbol + "\"];\n";
+					});*/
+				}
+				for (var key in todict) {
+					dotstring += i + " -> " + key + " [label = \"" + todict[key].join(",") + "\"];\n";
 				}
 			}
 		}
 	}
 	else {
+		var todict = {};
+		var builddict = function(arr) {
+			if (todict[arr[0]] == undefined)
+				todict[arr[0]] = {};
+			if (todict[arr[0]][arr[1]] == undefined)
+				todict[arr[0]][arr[1]] = [];
+			todict[arr[0]][arr[1]].push(arr[2]);
+		}
 		FA.normaledges.forEach(function(arr) {
-			dotstring += arr[0] + " -> " + arr[1] + " [label = \"" + arr[2] + "\"];\n";
+			builddict(arr);
+			//dotstring += arr[0] + " -> " + arr[1] + " [label = \"" + arr[2] + "\"];\n";
 		})
 		FA.newedges.forEach(function(arr) {
-			dotstring += arr[0] + " -> " + arr[1] + " [label = \"" + arr[2] + "\"];\n";
+			builddict(arr);
+			//dotstring += arr[0] + " -> " + arr[1] + " [label = \"" + arr[2] + "\"];\n";
 		})
 		FA.ledges.forEach(function(arr) {
-			dotstring += arr[0] + " -> " + arr[1] + " [label = \"" + arr[2] + "\"];\n";
+			builddict(arr);
+			//dotstring += arr[0] + " -> " + arr[1] + " [label = \"" + arr[2] + "\"];\n";
 		})
+		for (var from in todict)
+			for (var to in todict[from])
+				dotstring += from + " -> " + to + " [label = \"" + todict[from][to].join(",") + "\"];\n";
 	}
 	dotstring += "}";
 	return dotstring;
@@ -370,6 +460,17 @@ function FAToHTML(FA, HTML, flag) { // From a FA and HTML (svg) code return an o
 			circle.setAttribute("ry", $("ellipse", retObj.states[i]).attr("ry")-3);
 			$("ellipse", retObj.states[i]).after(circle);
 		}
+		if (!flag) { // Add hover info box to states
+			var cx = $("ellipse", retObj.states[i]).attr("cx");
+			var cy = $("ellipse", retObj.states[i]).attr("cy");
+			var path = document.createElementNS('http://www.w3.org/2000/svg', "path");
+			path.setAttribute("stroke", "#000000");
+			path.setAttribute("fill", "#eeeeee");
+			path.setAttribute("fill-opacity", "0");
+			path.setAttribute("d", "M" + (cx-23) + "," + cy + " l0,-50 70,0 0,27 -47,0 a23 23 0 0 0 -23 23");
+			path.setAttribute("class", "info_path");
+			retObj.states[i].append(path);
+		}
 	}
 
 	var edges = $(".edge", elements);
@@ -377,10 +478,11 @@ function FAToHTML(FA, HTML, flag) { // From a FA and HTML (svg) code return an o
 		for (var i = 1; i < edges.length; i++) {
 			var title = $("title", edges[i]).text().split("->");
 			var from = parseInt(title[0]);
-			var symbol = $("text", edges[i]).text();
-			if (retObj.edges[from][symbol] == undefined)
-				retObj.edges[from][symbol] = new Set();
-			retObj.edges[from][symbol].add([parseInt(title[1]), $(edges[i])])
+			var to = parseInt(title[1]);
+			var symbols = $("text", edges[i]).text().split(",");
+			if (retObj.edges[from][to] == undefined)
+				retObj.edges[from][to] = [[], $(edges[i])];
+			retObj.edges[from][to][0] = retObj.edges[from][to][0].concat(symbols)
 		}
 	}
 	else { // flag: combination of NFAl and NFA
@@ -401,16 +503,14 @@ function FAToHTML(FA, HTML, flag) { // From a FA and HTML (svg) code return an o
 			var title = $("title", edges[i]).text().split("->");
 			var from = parseInt(title[0]);
 			var to = parseInt(title[1]);
-			var symbol = $("text", edges[i]).text();
-			if (hasArray(FA.newedges, [from,to,symbol])) {
-				if (retObj.newedges[from][symbol] == undefined)
-					retObj.newedges[from][symbol] = new Set();
-				retObj.newedges[from][symbol].add([to, $(edges[i])])
-			}
-			else {
-				if (retObj.edges[from][symbol] == undefined)
-					retObj.edges[from][symbol] = new Set();
-				retObj.edges[from][symbol].add([to, $(edges[i])])
+			var symbols = $("text", edges[i]).text().split(",");
+			retObj.edges[from][to] = [[], $(edges[i])];
+			retObj.newedges[from][to] = [];
+			for (var index in symbols) {
+				if (SetHasArray(FA.newedges, [from,to,symbols[index]]))
+					retObj.newedges[from][to].push(symbols[index]);
+				else
+					retObj.edges[from][to][0].push(symbols[index]);
 			}
 		}
 	}
@@ -423,4 +523,62 @@ function FAToHTML(FA, HTML, flag) { // From a FA and HTML (svg) code return an o
 	$("ellipse", elements).attr("fill", "#eeeeee");
 	elements.children().children("polygon").remove(); // Remove the background fill
 	return retObj;
+}
+
+function showStepButtons(step) {
+	var textl = "", textr= "";
+	switch (step) {
+		case 1:
+			textr = "Remove<br>&lambda;-transitions";
+			break;
+		case 2:
+			textl = "Revert to<br>NFA-&lambda;";
+			textr = "Remove non-<br>determinism";
+			break;
+		case 3:
+			textl = "Revert to<br>NFA";
+			textr = "Minimize";
+			break;
+		case 4:
+			textl = "Revert to<br>DFA"
+	}
+	if (step < 4) {
+		$("#stepr .steptext").html(textr);
+		$("#stepr").attr("step", step);
+		$("#stepr").css({"display": "flex", "opacity": 0}).animate({"opacity": 1}, 800);
+	}
+	if (step > 1) {
+		$("#stepl .steptext").html(textl);
+		$("#stepl").attr("step", step+4);
+		$("#stepl").css({"display": "flex", "opacity": 0}).animate({"opacity": 1}, 800);
+	}
+}
+
+function clickStepButton() {
+	if (in_animation)
+		return; // Animation already in progress: stop
+	var savedthis = this;
+	$(".step").finish().animate({"opacity": 0}, 100).promise().then(function() {
+			$(".step").css("display", "none");
+			switch (savedthis.getAttribute("step")) {
+				case "1":
+					toNFA().then(function() { showStepButtons(2); });
+					break;
+				case "2":
+					toDFA().then(function() { showStepButtons(3); });
+					break;
+				case "3":
+					toDFAm().then(function() { showStepButtons(4); });
+					break;
+				case "6":
+					showFAWrap(0).then(function() { showStepButtons(1); });
+					break;
+				case "7":
+					showFAWrap(2).then(function() { showStepButtons(2); });
+					break;
+				case "8":
+					showFAWrap(3).then(function() { showStepButtons(3); });
+					break;
+			}
+	});
 }

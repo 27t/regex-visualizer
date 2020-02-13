@@ -328,8 +328,8 @@ function removeTrivialState(NFAl, state, tofr, tag) {
 }
 
 /*
-	Functions for NFA: Construct NFA from NFAl by removing lambda transitions
-	and a function to compute lambda closure of states
+	Functions for NFA: Construct NFA from NFAl by removing lambda transitions,
+  a function to compute lambda closure of states and a function for removing unreachable states
 */
 function removelTransitions(NFAl) {
 	var closure = lClosure(NFAl); // Calculate which states can be reached from which states using only lambda transitions
@@ -426,6 +426,141 @@ function removeUnreachable(NFA, NFAold) { // Remove unreachable states and their
 }
 
 /*
+	Functions for DFA
+*/
+function subsetConstruction(NFA) { // Convert a NFA to DFA by using the subset construction
+	var DFA = {
+		alphabet: new Set(NFA.alphabet), // Set containing letters used in expression
+		states: 1,                       // Amount of states
+		start: 0,                				 // Index of starting state
+		edges: [],                       // List of map of outgoing edges for each state
+		outgoing: [],      							 // Amount of outgoing edges for each state
+		incoming: [],      						 	 // Amount of incoming edges for each state
+		accepting: new Set(),        		 // Set of accepting states
+		statescor: []										 // Array that keeps track of what old states correspond to a new state
+	}
+	DFA.statescor[0] = [NFA.start]; // The only state corresponding to the new starting state is the old starting state
+
+	var reachable = []; // States reachable from a current list of states using a certain symbol
+	for (var i = 0; i < DFA.states; i++) {
+		DFA.alphabet.forEach(function(symbol) {
+			reachable = []; // Initialize reachable as empty for each symbol
+			for (var j = 0; j < DFA.statescor[i].length; j++) {
+				if (NFA.edges[DFA.statescor[i][j]] != undefined && NFA.edges[DFA.statescor[i][j]][symbol] != undefined) {
+					NFA.edges[DFA.statescor[i][j]][symbol].forEach(function(val) {
+						if (!reachable.includes(val))
+							reachable.push(val);
+					})
+				}
+			}
+			reachable.sort(function(a, b) {
+				return a-b;
+			});
+			var index = ArrayHasArray(DFA.statescor, reachable);
+			if (index != -1) { // State corresponding to exactly these elements already exists
+				addTransition(DFA, i, index, symbol);
+			}
+			else { // State corresponding to exactly these elements doesn't yet exist: create it
+				var isaccepting = false; // New state is accepting if reachable contains an accepting state from the NFA
+				for (var j = 0; j < reachable.length; j++) {
+					if (NFA.accepting.has(reachable[j]))
+						isaccepting = true;
+				}
+				if (isaccepting) {
+					DFA.accepting.add(DFA.states);
+				}
+				addTransition(DFA, i, DFA.states, symbol);
+				DFA.statescor[DFA.states] = reachable;
+				DFA.states++;
+			}
+		})
+	}
+	return DFA;
+}
+
+/*
+	Functions for DFAm
+*/
+function minimizeDFA(DFA) { // Minimize a DFA by computing which states are equivalent and combining them
+	var equivalent = []; // 2d array of booleans indicating if state i and j are equivalent
+	for (var i = 0; i < DFA.states; i++) {
+		equivalent[i] = [];
+		for (var j = i; j < DFA.states; j++) {
+			// Start by marking states equivalent if they are both accepting or non-accepting
+			if ((DFA.accepting.has(i) && DFA.accepting.has(j)) || (!DFA.accepting.has(i) && !DFA.accepting.has(j)))
+				equivalent[i][j] = true;
+			else
+				equivalent[i][j] = false;
+		}
+	}
+	while (true) { // Continue marking rounds until we have a round where nothing is marked
+		var marked = false; // Have we marked something this round?
+		for (var i = 0; i < DFA.states; i++) {
+			for (var j = i+1; j < DFA.states; j++) {
+				if (equivalent[i][j]) {
+					DFA.alphabet.forEach(function(symbol) {
+						if (!equivalent[i][j])
+							return;
+						var a = DFA.edges[i][symbol].values().next().value;
+						var b = DFA.edges[j][symbol].values().next().value;
+						if (!equivalent[Math.min(a,b)][Math.max(a,b)]) {
+							equivalent[i][j] = false;
+							marked = true;
+						}
+					})
+				}
+			}
+		}
+		if (!marked) // Nothing marked this round, stop
+			break;
+	}
+
+	var DFAm = {
+		alphabet: new Set(DFA.alphabet),         // Set containing letters used in expression
+		states: 0,                      				 // Amount of states
+		edges: [],                               // List of map of outgoing edges for each state
+		outgoing: [],      											 // Amount of outgoing edges for each state
+		incoming: [],														 // Amount of incoming edges for each state
+		accepting: new Set(),         					 // Set of accepting states
+		statescor: []
+	}
+
+	var taken = [];
+	for (var i = 0; i < DFA.states; i++) {
+		if (taken.includes(i)) // State already got assigned to a new state
+			continue;
+		if (DFA.accepting.has(i)) // New state is accepting iff old states were accepting
+			DFAm.accepting.add(DFAm.states);
+		DFAm.statescor[DFAm.states] = [];
+		for (var j = i; j < DFA.states; j++) {
+			if (equivalent[i][j]) {
+				DFAm.statescor[DFAm.states].push(j);
+				taken.push(j);
+			}
+		}
+		if (DFAm.statescor[DFAm.states].includes(DFA.start))
+			DFAm.start = DFAm.states; // New starting state corresponds to old starting state
+		DFAm.states++;
+	}
+
+	for (var i = 0; i < DFAm.states; i++) { // Add the new transitions
+		DFAm.alphabet.forEach(function(symbol) {
+			var toOld = DFA.edges[DFAm.statescor[i][0]][symbol].values().next().value;
+			var toNew;
+			for (var j = 0; j < DFAm.states; j++) {
+				if (DFAm.statescor[j].includes(toOld)) {
+					toNew = j;
+					break;
+				}
+			}
+			addTransition(DFAm, i, toNew, symbol);
+		})
+	}
+	return DFAm;
+}
+
+
+/*
 	General functions
 */
 function generateAutomata(regex) {
@@ -433,6 +568,8 @@ function generateAutomata(regex) {
 	instance.NFAl = trivialStates(constructNFAl(parseRegex(regex_global)));
 	instance.NFATransition = removelTransitions(deepCopyAutomaton(instance.NFAl));
 	instance.NFA = removeUnreachable(deepCopyAutomaton(instance.NFATransition), instance.NFATransition);
+	instance.DFA = subsetConstruction(instance.NFA);
+	instance.DFAm = minimizeDFA(instance.DFA);
 	instance.FAobj = [];
 	instance.FAstrings = [];
 }
@@ -536,7 +673,7 @@ function deepCopyAutomaton(FA) {
 	return copy;
 }
 
-function hasArray(set, array) {
+function SetHasArray(set, array) { // Check if set contains a certain array
 	var found = false;
 	set.forEach(function(val) {
 		if (!found) {
@@ -548,4 +685,22 @@ function hasArray(set, array) {
 	}
 	})
 	return found;
+}
+
+function ArrayHasArray(array, sub) { // Check if array contains a certain subarray
+	for (var i = 0; i < array.length; i++) {
+		if (ArrayEquals(array[i], sub)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+function ArrayEquals(arr1, arr2) { // Check if two arrays are the same
+	if (arr1.length != arr2.length)
+		return false;
+	for (var i = 0; i < arr1.length; i++)
+		if (arr1[i] != arr2[i])
+			return false;
+	return true;
 }

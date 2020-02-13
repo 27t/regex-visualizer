@@ -21,11 +21,12 @@
 
 	</div>
 	<div id="previous_step">
-		<div class="step step2l">
+		<div id="stepl" class="step">
 			<svg width="55px" height="80px" viewBox="0 0 55 80">
 				<path fill="none" stroke="#000000" stroke-width="4px" d="M 25 20 L 7 42 L 25 64"/>
+				<path class="buttonPath" fill="none" stroke="#0f6966" stroke-width="4px" d="M 25 20 L 7 42 L 25 64"/>
 			</svg>
-			<div class="steptext">Revert to<br>NFA-&lambda;</div>
+			<div class="steptext"></div>
 		</div>
 	</div>
 	<div id="inp">
@@ -41,16 +42,11 @@
 		<button disabled id="convert">Convert</button>
 	</div>
 	<div id="next_step">
-		<div class="step step1r">
-			<div class="steptext">Remove<br>&lambda;-transitions</div>
+		<div id="stepr" class="step">
+			<div class="steptext"></div>
 			<svg width="40px" height="80px" viewBox="0 0 40 80">
 				<path fill="none" stroke="#222233" stroke-width="4px" d="M 15 20 L 33 42 L 15 64"/>
-			</svg>
-		</div>
-		<div class="step step2r">
-			<div class="steptext">Remove non-<br>determinism</div>
-			<svg width="40px" height="80px" viewBox="0 0 40 80">
-				<path fill="none" stroke="#222255" stroke-width="4px" d="M 15 20 L 33 42 L 15 64"/>
+				<path class="buttonPath" fill="none" stroke="#0f6966" stroke-width="4px" d="M 15 20 L 33 42 L 15 64"/>
 			</svg>
 		</div>
 	</div>
@@ -66,8 +62,8 @@
 		</div>
 	</div>
 </div>
-<div id="line"></div>
 <p id="step_message"></p>
+<div id="line"></div>
 <div id="FA"></div>
 </body>
 
