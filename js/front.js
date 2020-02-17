@@ -5,7 +5,6 @@ var startscreen = true; // If the home screen is shown
 var regex_global = "";
 var instance;
 var viz = new Viz({ workerURL: "js/full.render.js" }); // Load viz renderer
-var scale, scaledir;
 
 $(document).ready(function(){
 	var test = browserTest(); // Check if some neccessary features are available in the users browser
@@ -15,8 +14,23 @@ $(document).ready(function(){
 	loadSvgInteraction(); // Load panning and zooming events
 	$("#regex").on("input", onRegexChange);
 	$("#convert").click(onConvertRegex);
-	$(".step").click(clickStepButton);
-	
+	$(".stepbutton").click(clickStepButton);
+
+	$(".helpbutton").click(function() {
+		$(".helpmenu").toggleClass("helpmenu_selected");
+	})
+	$(".helpexit").click(function() {
+		$(".helpmenu").removeClass("helpmenu_selected");
+	})
+	$(".helpsectionbutton").click(function() { // Scroll to the clicked section
+		$(".helpcontent").stop().animate({
+			scrollTop: $(this.getAttribute("section"))[0].offsetTop
+		}, 600);
+	})
+	$(".examplebutton").click(function() {
+		$("#regex").val("a*(b+a|de*)*a*"); // Example regular expression
+		$("#regex").trigger("input");
+	})
 	$("#options_check").change(function() {
 		auto_animation = this.checked;
 		if (auto_animation) {
@@ -70,11 +84,13 @@ function onRegexChange() {
 }
 
 function onConvertRegex() {
-	var parsed = parseRegex($("#regex").val());
-	if (parsed === -1) // Invalid expression
+	var val = $("#regex").val()
+	var parsed = parseRegex(val);
+	if (parsed === -1 || val == "" || val == undefined || in_animation) // Invalid expression or animation in progress
 		return;
 
 	in_animation = true;
+	$("#convert").attr("disabled", true).animate({"opacity": 0}, 700);
 	$(".step").css("display", "none");
 	regex_global = $("#regex").val();
 	var p1;
@@ -108,25 +124,17 @@ function onConvertRegex() {
 	$.when(p1).then(function() {
 		return showFAWrap(0);
 	}).then(function() {
+		$("#convert").attr("disabled", false).animate({"opacity": 1}, 700);
 		showStepButtons(1);
 	})
-	/*$.when(instance.FAstrings[0],p1).then(function(element) { // Element contains the svg element
-			instance.FAobj[0] = FAToHTML(instance.NFAl, element);
-			makeInvisible(instance.FAobj[0]);
-			$("#FA").html(instance.FAobj[0].svg);
-			updateScale();
-			animationWrap(showFA, [instance.FAobj[0]], 0).then(function() {
-				showStepButtons(1);
-			});
-	})*/
 }
 
 /*
 	Wrapper functions for the main animations:
 	- Show NFAl, NFA, DFA or DFAm
 	- Convert NFAl to NFA to DFA to DFAm
+	- Check if string matches regular expression
 */
-
 function showFAWrap(type) { // type=0: NFAl, 2: NFA, 3: DFA, 4: DFAm
 	in_animation = true;
 	return $.when(instance.FAstrings[type]).then(function(element) { // Element contains the svg element
@@ -137,7 +145,7 @@ function showFAWrap(type) { // type=0: NFAl, 2: NFA, 3: DFA, 4: DFAm
 		instance.FAobj[type] = FAToHTML(FA, element);
 		makeInvisible(instance.FAobj[type]);
 		$("#FA").html(instance.FAobj[type].svg);
-		updateScale();
+		updateScale($("#FA").children()[0]);
 		return animationWrap(showFA, [instance.FAobj[type]], type);
 	})
 }
@@ -153,8 +161,10 @@ function toNFA() {
 			instance.FAobj[1] = undefined;
 		}
 		instance.FAobj[2] = FAToHTML(instance.NFA, element2);
-		return animationWrap(animToNFAStart, [instance.FAobj], 2);
-	});
+		return animationWrap(animToNFAStart, [instance.FAobj], 2).then(function() {
+			updateScale($("#FA").children()[0]);
+		})
+	})
 }
 
 function toDFA() {
@@ -162,7 +172,9 @@ function toDFA() {
 	return $.when(instance.FAstrings[3]).then(function(element) { // Check if needed svg has been rendered
 		instance.FAobj[3] = FAToHTML(instance.DFA, element);
 		makeInvisible(instance.FAobj[3]);
-		return animationWrap(animToDFAStart, [instance], 3);
+		return animationWrap(animToDFAStart, [instance], 3).then(function() {
+			updateScale($("#FA").children()[0]);
+		})
 	})
 }
 
@@ -170,18 +182,33 @@ function toDFAm() {
 	in_animation = true;
 	return $.when(instance.FAstrings[4]).then(function(element) { // Check if needed svg has been rendered
 		instance.FAobj[4] = FAToHTML(instance.DFAm, element);
-		return animationWrap(animToDFAmStart, [instance], 4);
+		return animationWrap(animToDFAmStart, [instance], 4).then(function() {
+			updateScale($("#FA").children()[0]);
+		})
 	})
 }
 
-function updateScale() {
-	if ($("#FA svg")[0].viewBox.baseVal.width * $("#FA svg").height() < $("#FA svg")[0].viewBox.baseVal.height * $("#FA svg").width()) {
-		scale = $("#FA svg")[0].viewBox.baseVal.height / $("#FA svg").height();
-		scaledir = 0;
+function checkMatch(string) {
+	in_animation = true;
+	$("#graphdouble").remove(); // Remove old graph double
+	var match = stringMatches(instance.DFAm, string)
+	return animationWrap(animCheckMatchStart, [instance.FAobj[4], match, string], match.matched ? 5 : 6).then(function() {
+		var double = $("#graphdouble");
+		double.delay(3000).promise().then(function() { // If the graph double is still there after 3 seconds, remove it
+			double.remove();
+			$("#step_message").html("");
+		})
+	});
+}
+
+function updateScale(element) {
+	if (element.viewBox.baseVal.width * $(element).height() < element.viewBox.baseVal.height * $(element).width()) {
+		element.scale = element.viewBox.baseVal.height / $(element).height();
+		element.scaledir = 0;
 	}
 	else {
-		scale = $("#FA svg")[0].viewBox.baseVal.width / $("#FA svg").width();
-		scaledir = 1;
+		element.scale = element.viewBox.baseVal.width / $(element).width();
+		element.scaledir = 1;
 	}
 }
 
@@ -190,8 +217,8 @@ function loadSvgInteraction() {
 	var panning = false;
 	var holdingIndex; // Value of the state currently being held
 	var oldX, oldY;
-	var nodeSelected = true;
-	var savedThis, savedNext;
+	var nodeSelected = false;
+	var infobox, state, statedouble;
 
 	$(document).mouseup(function() {
 		holdingNode = false;
@@ -206,8 +233,8 @@ function loadSvgInteraction() {
 
 	$(document).on("mousemove", "#FA svg", function(e) {
 		if (panning) {
-			this.viewBox.baseVal.x -= (e.clientX-oldX)*scale
-			this.viewBox.baseVal.y -= (e.clientY-oldY)*scale;
+			this.viewBox.baseVal.x -= (e.clientX-oldX)*this.scale
+			this.viewBox.baseVal.y -= (e.clientY-oldY)*this.scale;
 			oldX = e.clientX;
 			oldY = e.clientY;
 		}
@@ -224,7 +251,7 @@ function loadSvgInteraction() {
 		var mouseX = e.clientX*mat.a+e.clientY*mat.c+mat.e;
 		var mouseY = e.clientX*mat.b+e.clientY*mat.d+mat.f;
 		var zoomscale;
-		if (scaledir) {
+		if (this.scaledir) {
 			if (delta > 0 && this.viewBox.baseVal.width > 50)
 				zoomscale = (this.viewBox.baseVal.width-50)/this.viewBox.baseVal.width;
 			else if (delta < 0)
@@ -244,82 +271,57 @@ function loadSvgInteraction() {
 		this.viewBox.baseVal.height *= zoomscale;
 		this.viewBox.baseVal.x = mouseX - (mouseX-this.viewBox.baseVal.x)*zoomscale;
 		this.viewBox.baseVal.y = mouseY - (mouseY-this.viewBox.baseVal.y)*zoomscale;
-		updateScale();
+		updateScale(this);
 	})
 
-	$(document).on("mouseenter", ".node", function(e) {
+	$(document).on("mouseenter mousemove", ".node", function(e) {
 		if (!nodeSelected && !in_animation) {
 			nodeSelected = true;
-			savedThis = this;
-			$(this).parent().prepend($(this).parent().children().filter(".edge")); // Move edges to background
-			$(".info_path", savedThis).addClass("info_selected")
-			$("ellipse", savedThis).eq(0).addClass("selected_big");
-			if ($("ellipse", savedThis).length == 2) // Accepting state, 2 ellipses
-				$("ellipse", savedThis).eq(1).addClass("selected_small");
+			infobox = $("#infobox" + this.id);
+			state = this;
+			statedouble = document.getElementById(state.id + "double")
+			$("#graph0").prepend($("#graph0").children().filter(".edge")); // Move edges to background
+			$(".info_path", infobox).addClass("info_path_selected");
+			$(".info_text", infobox).addClass("info_text_selected")
+			$(".info_rect", state).addClass("info_rect_selected");
+			$("ellipse", state).eq(0).addClass("selected_big");
+			if (statedouble)
+				$("ellipse", statedouble).eq(0).addClass("selected_big");
+			if ($("ellipse", state).length == 2) { // Accepting state, 2 ellipses
+				$("ellipse", state).eq(1).addClass("selected_small");
+				if (statedouble)
+					$("ellipse", statedouble).eq(1).addClass("selected_small");
+			}
 		}
 	})
 
 	$(document).on("mouseleave", ".node", function(e) {
 		if (nodeSelected) {
 			nodeSelected = false;
-			$(".info_path", savedThis).removeClass("info_selected")
-			$("ellipse", savedThis).eq(0).removeClass("selected_big");
-			if ($("ellipse", savedThis).length == 2) // Accepting state, 2 ellipses
-				$("ellipse", savedThis).eq(1).removeClass("selected_small");
-			$(savedThis).delay(1500).promise().then(function() {
+			$(".info_path", infobox).removeClass("info_path_selected");
+			$(".info_text", infobox).removeClass("info_text_selected");
+			$(".info_rect", state).removeClass("info_rect_selected");
+			$("ellipse", state).eq(0).removeClass("selected_big");
+			if (statedouble)
+				$("ellipse", statedouble).eq(0).removeClass("selected_big");
+			if ($("ellipse", state).length == 2) { // Accepting state, 2 ellipses
+				$("ellipse", state).eq(1).removeClass("selected_small");
+				if (statedouble)
+					$("ellipse", statedouble).eq(1).removeClass("selected_small");
+			}
+			$(document).delay(1500).promise().then(function() {
 				// If no state selected after transition is done (1.5s), move edges to foreground again
 				if (!nodeSelected)
-					$(this).parent().append($(this).parent().children().filter(".edge"));
+					$("#graph0").append($("#graph0").children().filter(".edge"));
 			})
 		}
 	})
-
-	/*
-	//	Moving states not finished
-	//  Very processor heavy, maybe later
-	$(document).on("mousedown", ".node", function(e) {
-		e.stopPropagation(); // Stop click from also being interpreted as general svg click
-		if (!holdingNode) {
-			holdingNode = true;
-			holdingIndex = parseInt($("text", this).text());
-			oldX = e.clientX;
-			oldY = e.clientY;
-		}
-	})
-
-	$(document).on("mousemove", ".node", function(e) {
-		if (holdingNode) {
-			var state = FAobj.states[holdingIndex];
-
-			for (var i = 0; i < $("ellipse", state).length; i++) {
-				$("ellipse", state)[i].cx.baseVal.value += (e.clientX-oldX)*scale;
-				$("ellipse", state)[i].cy.baseVal.value += (e.clientY-oldY)*scale;
-			}
-			$("text", state)[0].x.baseVal[0].value += (e.clientX-oldX)*scale;
-			$("text", state)[0].y.baseVal[0].value += (e.clientY-oldY)*scale;
-			for (var symbol in FAobj.edges[holdingIndex])
-			FAobj.edges[holdingIndex][symbol].forEach(function(edge) {
-				var d = $("path", edge[1]).attr("d");
-				var arr = d.split(",");
-				arr[1] = arr[1].split("C");
-				var x = parseFloat(arr[0].substr(1)) + (e.clientX-oldX)*scale;
-				arr[1][0] = parseFloat(arr[1][0]) + (e.clientY-oldY)*scale;
-				arr[0] = "M" + x;
-				arr[1] = arr[1].join("C");
-				d = arr.join(",");
-				$("path", edge[1]).attr("d", d);
-				console.log(edge[1]);
-			})
-			oldX = e.clientX;
-			oldY = e.clientY;
-		}
-	})*/
 }
 
 
 function makeInvisible(FAobj) { // Make all nodes, edges, text hidden
-	$("ellipse", FAobj.svg).attr("visibility", "hidden");
-	$("text", FAobj.svg).css({"opacity": 0});
+	$("#graph0 ellipse", FAobj.svg).attr("visibility", "hidden");
+	$("#graph0 text", FAobj.svg).css({"opacity": 0});
 
 	var edges = $(".edge", FAobj.svg);
 	for (var i = 0; i < edges.length; i++) {
@@ -353,6 +355,10 @@ function hideNewEdges(FAobj) {
 			}
 			else {
 				$("text", edge).text(FAobj.edges[from][to][0].join(","));
+				var te = $("text", edge)[0];
+				var index = te.innerHTML.indexOf("0");
+				if (index != -1)
+					te.innerHTML = te.innerHTML.substr(0, index) + "&lambda;" + te.innerHTML.substr(index+1);
 			}
 		}
 	}
@@ -449,6 +455,26 @@ function FAToHTML(FA, HTML, flag) { // From a FA and HTML (svg) code return an o
 	retObj.svg = elements;
 	retObj.start = [$("#edge1", elements), FA.start];
 
+	var g = document.createElementNS('http://www.w3.org/2000/svg', "g");
+	g.setAttribute("id", "infoboxes");
+	g.setAttribute("transform", retObj.svg.children().eq(0).attr("transform"));
+	retObj.svg.append(g);
+	var appendAndTruncate = function(examplestring, tspan, text) {
+		$(tspan).appendTo(text).promise().then(function() {
+			tspan.innerHTML = examplestring;
+			// Truncate string if too long
+			if (tspan.getSubStringLength(0, examplestring.length) > 95) {
+				var newlength = examplestring.length-1;
+				tspan.innerHTML = examplestring.substr(0, newlength);
+				while (tspan.getSubStringLength(0, newlength) > 90 && newlength > 1) {
+					newlength--;
+					tspan.innerHTML = examplestring.substr(0, newlength);
+				}
+				tspan.innerHTML += "...";
+			}
+		})
+	}
+
 	for (var i = 0; i < FA.states; i++) {
 		retObj.states[i] = $("#node" + (i+2), elements); // State 0 has id #node2 etc..
 		if (FA.accepting.has(i)) { // Add inner circle to accepting states
@@ -461,15 +487,77 @@ function FAToHTML(FA, HTML, flag) { // From a FA and HTML (svg) code return an o
 			$("ellipse", retObj.states[i]).after(circle);
 		}
 		if (!flag) { // Add hover info box to states
+			var subg = document.createElementNS('http://www.w3.org/2000/svg', "g");
+			subg.setAttribute("id", "infobox" + retObj.states[i].attr("id"));
+			subg.setAttribute("class", "info_box")
+			g.appendChild(subg);
 			var cx = $("ellipse", retObj.states[i]).attr("cx");
 			var cy = $("ellipse", retObj.states[i]).attr("cy");
 			var path = document.createElementNS('http://www.w3.org/2000/svg', "path");
 			path.setAttribute("stroke", "#000000");
 			path.setAttribute("fill", "#eeeeee");
-			path.setAttribute("fill-opacity", "0");
-			path.setAttribute("d", "M" + (cx-23) + "," + cy + " l0,-50 70,0 0,27 -47,0 a23 23 0 0 0 -23 23");
+			path.setAttribute("d", "M" + (cx-23) + "," + cy + " l0,-75 100,0 0,52 -77,0 a23 23 0 0 0 -23 23");
 			path.setAttribute("class", "info_path");
-			retObj.states[i].append(path);
+			var len = path.getTotalLength();
+			path.style["stroke-dasharray"] = len;
+			path.style["stroke-dashoffset"] = len;
+			subg.append(path);
+			var text = document.createElementNS('http://www.w3.org/2000/svg', "text");
+			text.setAttribute("x", cx-20);
+			text.setAttribute("y", cy-64);
+			text.setAttribute("fill", "#000000");
+			text.classList.add("info_text");
+			subg.append(text);
+			var texthead = document.createElementNS('http://www.w3.org/2000/svg', "tspan");
+			texthead.setAttribute("x", cx-20);
+			texthead.setAttribute("dy", "0");
+			texthead.classList.add("info_text_big");
+			texthead.innerHTML = "State " + i;
+			text.append(texthead);
+			// Get (a maximum of) 4 random strings from the examplestrings array
+			var examplestrings = [];
+			if (FA.examplestrings[i].length <= 4)
+				examplestrings = FA.examplestrings[i];
+			else {
+				// Always add the first found examplestring
+				examplestrings.push(FA.examplestrings[i][0]);
+				while (examplestrings.length < 4) {
+					var index = Math.floor(Math.random()*FA.examplestrings[i].length);
+					if (examplestrings.indexOf(FA.examplestrings[i][index]) == -1)
+						examplestrings.push(FA.examplestrings[i][index]);
+				}
+				examplestrings.sort(function(a,b) {
+					return a.length - b.length; // Ascending in length
+				})
+			}
+			var textexample = document.createElementNS('http://www.w3.org/2000/svg', "tspan");
+			textexample.setAttribute("x", cx-20);
+			textexample.setAttribute("dy", "7.8px");
+			textexample.classList.add("info_text_small");
+			textexample.innerHTML = "Example strings:";
+			$(textexample).appendTo(text);
+			for (var examplestring of examplestrings) {
+				var textexample = document.createElementNS('http://www.w3.org/2000/svg', "tspan");
+				textexample.setAttribute("x", cx-20);
+				textexample.setAttribute("dy", "7.5px");
+				textexample.classList.add("info_text_small");
+				if (examplestring.length == 0) { // Empty string
+					textexample.innerHTML = "&lambda; (Empty string)";
+					$(textexample).appendTo(text);
+				}
+				else {
+					appendAndTruncate(examplestring, textexample, text);
+				}
+			}
+			var rect = document.createElementNS('http://www.w3.org/2000/svg', "rect"); // Invisible rectangle to detect hovering
+			rect.setAttribute("x", cx-23);
+			rect.setAttribute("y", cy-75);
+			rect.setAttribute("width", "100");
+			rect.setAttribute("height", "75");
+			rect.setAttribute("fill", "rgba(0,0,0,0)");
+			rect.setAttribute("stroke", "rgba(0,0,0,0)");
+			rect.setAttribute("class", "info_rect");
+			retObj.states[i].append(rect);
 		}
 	}
 
@@ -518,10 +606,19 @@ function FAToHTML(FA, HTML, flag) { // From a FA and HTML (svg) code return an o
 		$("path", edges[i])[0].lengthsaved = $("path", edges[i])[0].getTotalLength()
 		$("path", edges[i]).css("stroke-dasharray", $("path", edges[i])[0].lengthsaved);
 	}
-
+	$("text", edges).each(function() {
+		var index = this.innerHTML.indexOf("0");
+		if (index != -1)
+			this.innerHTML = this.innerHTML.substr(0, index) + "&lambda;" + this.innerHTML.substr(index+1);
+	})
 	$("title", elements).remove(); // Remove all the title elements (hovering indicator)
 	$("ellipse", elements).attr("fill", "#eeeeee");
 	elements.children().children("polygon").remove(); // Remove the background fill
+	elements.children().contents().each(function() {
+		if (this.nodeType == Node.COMMENT_NODE || this.nodeType == Node.TEXT_NODE) {
+			$(this).remove(); // Remove comments from the html
+		}
+	})
 	return retObj;
 }
 
@@ -542,43 +639,62 @@ function showStepButtons(step) {
 		case 4:
 			textl = "Revert to<br>DFA"
 	}
+	$(".step").finish();
 	if (step < 4) {
 		$("#stepr .steptext").html(textr);
 		$("#stepr").attr("step", step);
 		$("#stepr").css({"display": "flex", "opacity": 0}).animate({"opacity": 1}, 800);
+	}
+	else { // Step == 4
+		$("#stepr").css("display", "none");
+		$("#stepmatch .stepbutton").attr("step", 4);
+		$("#stepmatch").css({"display": "block", "opacity": 0}).animate({"opacity": 1}, 800);
 	}
 	if (step > 1) {
 		$("#stepl .steptext").html(textl);
 		$("#stepl").attr("step", step+4);
 		$("#stepl").css({"display": "flex", "opacity": 0}).animate({"opacity": 1}, 800);
 	}
+	$("#convert").attr("disabled", false).animate({"opacity": 1}, 800);
 }
 
 function clickStepButton() {
 	if (in_animation)
 		return; // Animation already in progress: stop
-	var savedthis = this;
-	$(".step").finish().animate({"opacity": 0}, 100).promise().then(function() {
-			$(".step").css("display", "none");
-			switch (savedthis.getAttribute("step")) {
-				case "1":
-					toNFA().then(function() { showStepButtons(2); });
-					break;
-				case "2":
-					toDFA().then(function() { showStepButtons(3); });
-					break;
-				case "3":
-					toDFAm().then(function() { showStepButtons(4); });
-					break;
-				case "6":
-					showFAWrap(0).then(function() { showStepButtons(1); });
-					break;
-				case "7":
-					showFAWrap(2).then(function() { showStepButtons(2); });
-					break;
-				case "8":
-					showFAWrap(3).then(function() { showStepButtons(3); });
-					break;
+	if (this.getAttribute("step") == "4") {
+		var string = $("#matchinput").val();
+		for (var i = 0; i < string.length; i++) {
+			if (!instance.DFAm.alphabet.has(string[i])) { // String contains letter not in alphabet
+				$("#step_message").html("String may only contain characters that are present in the automaton");
+				return;
 			}
-	});
+		}
+	}
+	$(".step, #convert").finish().attr("disabled", true).animate({"opacity": 0}, 100).promise().then(function() {
+		if (in_animation)
+			$(".step").css("display", "none");
+	})
+	switch (this.getAttribute("step")) {
+		case "1":
+			toNFA().then(function() { showStepButtons(2); });
+			break;
+		case "2":
+			toDFA().then(function() { showStepButtons(3); });
+			break;
+		case "3":
+			toDFAm().then(function() { showStepButtons(4); });
+			break;
+		case "4":
+			checkMatch(string).then(function() { showStepButtons(4); });
+			break;
+		case "6":
+			showFAWrap(0).then(function() { showStepButtons(1); });
+			break;
+		case "7":
+			showFAWrap(2).then(function() { showStepButtons(2); });
+			break;
+		case "8":
+			showFAWrap(3).then(function() { showStepButtons(3); });
+			break;
+	}
 }

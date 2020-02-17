@@ -9,6 +9,8 @@ function animationWrap(animationFunction, args, step) {
     in_animation = true;
     var queue = []; // Queue containing the next animation steps that are ready to go
     queue.notify = function(message) { // Custom queue function to notify queue when a new element gets added
+        if (queue == null) // Animation was skipped during this step, stop
+          return;
         if (auto_animation)
             (queue.shift())(); // Execute the first animation in the queue
         else { // Not auto animnation, wait for click
@@ -25,12 +27,14 @@ function animationWrap(animationFunction, args, step) {
         in_animation = false;
         $("#FA animate").remove(); // Delete the used animation objects
         $("#FA animateTransform").remove();
-        $("#step_message").html("");
+        if (step <= 4)
+          $("#step_message").html("");
         $("#skip_button").unbind(); // Remove old event handlers
         $("#options_button").unbind();
         $("#skip_button").css("visibility", "hidden");
         queue = null;
     })
+    $("#step_message").html("");
     args.push(queue);
     animationFunction.apply(this, args); // Start animation function
     $("#skip_button").css("visibility", "visible");
@@ -41,19 +45,43 @@ function animationWrap(animationFunction, args, step) {
 }
 
 function skipAnimation(step, queue) {
+  if (step == 5 || step == 6) {
+    $("#graphdouble").remove();
+    if (step == 5) {
+      doubleGraph($("#graph0"), "#31eb37", false); // Green
+      $("#step_message").html("The string matches the regular expression!");
+    }
+    else {
+      doubleGraph($("#graph0"), "#e61515", false); // Red
+      $("#step_message").html("The string doesn't match the regular expression!");
+    }
+    queue.done.resolve();
+    return;
+  }
   $.when(instance.FAstrings[step]).then(function(element) {
     var FA = step == 0 ? instance.NFAl
 					 : step == 2 ? instance.NFA
 					 : step == 3 ? instance.DFA
-					 : instance.DFAm;
+					 : step == 4 ? instance.DFAm
+           : undefined;
     instance.FAobj[step] = FAToHTML(FA, element);
-    $("#FA").html(instance.FAobj[step].svg);
+    $("#FA").html(instance.FAobj[step].svg).promise().then(function() {
+      updateScale($("#FA").children()[0]);
+    })
     queue.done.resolve();
   })
 }
 
 // Small intro animation
 function introAnimation() {
+    $(".helpbutton2, .examplebutton").css("border", "none")
+    $(".beginbuttons").animate({
+      'height': '0',
+      'opacity': '0'
+    }, 700).promise().then(function() {
+      $(".beginbuttons").css("display", "none");
+      $("#convert, #regex").css("margin", "10px auto");
+    })
     return $("#header").animate({
         'height': '110px'
     }, 700).promise().then(function() {
@@ -142,20 +170,14 @@ function showFAParts(FAobj, curstates, visited, entrypoints, queue) { // Show th
     });
 }
 
-function showStates(states, curstates, entrypoints, timeper) {
-    var p1;
-    for (var i in curstates) {
-        p1 = showState(states[curstates[i]], entrypoints[i], timeper)
-    }
-    return p1;
-}
-
 function showState(state, entrypoint, time) {
     var circles = $("ellipse", state);
     var cx = parseFloat(circles.attr("cx"));
     var cy = parseFloat(circles.attr("cy"));
-    var distance = Math.sqrt(Math.pow(cx - entrypoint.x, 2) + Math.pow(cy - entrypoint.y, 2));
+    var distance = Math.sqrt(Math.pow(cx - entrypoint.x, 2) + Math.pow(cy - entrypoint.y, 2)); // Distance from center to entrypoint
     var startx, starty, endx, endy;
+    var color = circles.attr("stroke");
+    var strokewidth = circles.attr("stroke-width");
     var p1;
     for (var i = 0; i < circles.length; i++) {
         var r = circles[i].rx.baseVal.value;
@@ -169,8 +191,10 @@ function showState(state, entrypoint, time) {
         var curve2 = document.createElementNS('http://www.w3.org/2000/svg', "path");
         curve1.setAttribute("fill", "none");
         curve2.setAttribute("fill", "none");
-        curve1.setAttribute("stroke", "#000000");
-        curve2.setAttribute("stroke", "#000000");
+        curve1.setAttribute("stroke", color);
+        curve2.setAttribute("stroke", color);
+        curve1.setAttribute("stroke-width", strokewidth);
+        curve2.setAttribute("stroke-width", strokewidth);
         curve1.setAttribute("d", "M" + startx + "," + starty + " A" + r + " " + r + " 0 0 0 " + endx + " " + endy);
         curve2.setAttribute("d", "M" + startx + "," + starty + " A" + r + " " + r + " 0 1 1 " + endx + " " + endy);
         curve1.setAttribute("class", "ellipsepath");
@@ -206,11 +230,69 @@ function showState(state, entrypoint, time) {
     return p1;
 }
 
+function unshowState(state, entrypoint, time) { // Opposite of showState
+    // (in this case entrypoint is actually the exit point for the next edge)
+    $("ellipse", state).attr("visibility", "hidden"); // Hide ellipses and replace them with animated paths
+    var circles = $("ellipse", state);
+    var cx = parseFloat(circles.attr("cx"));
+    var cy = parseFloat(circles.attr("cy"));
+    var distance = Math.sqrt(Math.pow(cx - entrypoint.x, 2) + Math.pow(cy - entrypoint.y, 2)); // Distance from center to entrypoint
+    var startx, starty, endx, endy;
+    var color = circles.attr("stroke");
+    var strokewidth = circles.attr("stroke-width");
+    var p1;
+    for (var i = 0; i < circles.length; i++) {
+        var r = circles[i].rx.baseVal.value;
+        // Arrows slightly stick out into the states, calculate actual entrypoint and endpoint
+        startx = cx + (cx - entrypoint.x) * r / distance;
+        starty = cy + (cy - entrypoint.y) * r / distance;
+        endx = 2 * cx - startx;
+        endy = 2 * cy - starty;
+
+        var curve1 = document.createElementNS('http://www.w3.org/2000/svg', "path");
+        var curve2 = document.createElementNS('http://www.w3.org/2000/svg', "path");
+        curve1.setAttribute("fill", "none");
+        curve2.setAttribute("fill", "none");
+        curve1.setAttribute("stroke", color);
+        curve2.setAttribute("stroke", color);
+        curve1.setAttribute("stroke-width", strokewidth);
+        curve2.setAttribute("stroke-width", strokewidth);
+        curve1.setAttribute("d", "M" + startx + "," + starty + " A" + r + " " + r + " 0 0 0 " + endx + " " + endy);
+        curve2.setAttribute("d", "M" + startx + "," + starty + " A" + r + " " + r + " 0 1 1 " + endx + " " + endy);
+        curve1.setAttribute("class", "ellipsepath");
+        curve2.setAttribute("class", "ellipsepath");
+
+				var len = curve1.getTotalLength();
+        $(curve1).css({
+            'stroke-dasharray': len,
+            'stroke-dashoffset': 0
+        });
+				len = curve2.getTotalLength();
+        $(curve2).css({
+            'stroke-dasharray': len,
+            'stroke-dashoffset': 0
+        });
+        state[0].appendChild(curve1);
+        state[0].appendChild(curve2);
+        $(curve1).animate({
+            'stroke-dashoffset': -len
+        }, time);
+        p1 = $(curve2).animate({
+            'stroke-dashoffset': -len
+        }, time).promise();
+    }
+    $.when(p1).then(function(path) { // Remove the animation paths
+      $(".ellipsepath", path.parent()).remove();
+      $("animate", state).remove(); // Remove old animation objects
+    })
+    return p1;
+}
+
 function showEdge(edge, time) {
     var path = $("path", edge);
     var pol = $("polygon", edge);
     var length = path[0].getTotalLength();
-    return path.animate({
+    return path.css("stroke-dashoffset", length).animate({
         'stroke-dashoffset': 0
     }, length / (length + 10) * time).promise().then(function() {
         var points = pol[0].points;
@@ -236,6 +318,36 @@ function showEdge(edge, time) {
     })
 }
 
+function showEdge2(edge, time) { // Show edge the other way around (first polygon then path)
+  var path = $("path", edge);
+  var pol = $("polygon", edge);
+  var length = path[0].lengthsaved;
+  var points = pol[0].points;
+  var anim = document.createElementNS('http://www.w3.org/2000/svg', "animate");
+  var attrs = {
+      attributeName: "points",
+      attributeType: "XML",
+      begin: "indefinite",
+      dur: (10 / (length + 10) * time) + "ms",
+      fill: "freeze",
+      from: points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " ",
+      to: points[0].x + " " + points[0].y + " " + points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " " + points[2].x + " " + points[2].y + " " + points[0].x + " " + points[0].y + " "
+  };
+  for (var k in attrs)
+      anim.setAttribute(k, attrs[k]);
+  pol.attr("visibility", "visible");
+  pol[0].appendChild(anim);
+  $("animate", pol)[0].beginElement();
+  return edge.delay(10 / (length + 10) * time).promise().then(function() { // Artifical delay, same time as animation time
+		return path.css("stroke-dashoffset", -length).animate({
+        'stroke-dashoffset': 0
+    }, length / (length + 10) * time).promise().then(function() {
+      $("text", edge).animate({"opacity": 1}, 220);
+      $("animate", edge).remove(); // Remove old animation objects
+		});
+	})
+}
+
 function unshowEdge(edge, time) { // Opposite of showEdge. First animate out polygon, then path
 	var path = $("path", edge);
 	var pol = $("polygon", edge);
@@ -257,7 +369,7 @@ function unshowEdge(edge, time) { // Opposite of showEdge. First animate out pol
 	$("animate", pol)[0].beginElement();
 	return edge.delay(10 / (length + 10) * time).promise().then(function() { // Artifical delay, same time as animation time
 		pol.attr("visibility", "hidden");
-		return path.animate({
+		return path.css("stroke-dashoffset", 0).animate({
         'stroke-dashoffset': length
     }, length / (length + 10) * time).promise().then(function() {
 			$("text", edge).animate({"opacity": 0}, 220);
@@ -266,19 +378,47 @@ function unshowEdge(edge, time) { // Opposite of showEdge. First animate out pol
 	})
 }
 
+function unshowEdge2(edge, time) { // Opposite of showEdge. First animate out path, then polygon
+  var path = $("path", edge);
+  var pol = $("polygon", edge);
+  var length = path[0].getTotalLength();
+  return path.css("stroke-dashoffset", 0).animate({
+      'stroke-dashoffset': -length
+  }, length / (length + 10) * time).promise().then(function() {
+      var points = pol[0].points;
+      var anim = document.createElementNS('http://www.w3.org/2000/svg', "animate");
+      var attrs = {
+          attributeName: "points",
+          attributeType: "XML",
+          begin: "indefinite",
+          dur: (10 / (length + 10) * time) + "ms",
+          fill: "freeze",
+          from: points[0].x + " " + points[0].y + " " + points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " " + points[2].x + " " + points[2].y + " " + points[0].x + " " + points[0].y + " ",
+          to: points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " " + points[1].x + " " + points[1].y + " "
+      };
+      for (var k in attrs)
+          anim.setAttribute(k, attrs[k]);
+      pol[0].appendChild(anim);
+      $("animate", pol)[0].beginElement();
+      return edge.delay(10 / (length + 10) * time).promise().then(function() { // Artifical delay, same time as animation time
+        pol.attr("visibility", "hidden");
+        $("animate", edge).remove(); // Remove old animation objects
+      })
+  })
+}
+
 /*
 	Convert NFAl to NFA by removing l-transitions
 	(and updating accepting states and removing unreachable states)
 */
 function animToNFAStart(FAobjs, queue) { // Starting animations: Rearrange and add accepting states
 	if (FAobjs[1] == undefined || FAobjs[1].newedges == undefined) {
-		$("#step_message").html("The automaton didn't contain any &lambda;-transitions. Continuing..");
-		$("#step_message").delay(3000).promise().then(function() { // Show message for 3 seconds
-			this.html("");
-		})
+		$("#step_message").html("The automaton doesn't contain any &lambda;-transitions. Continuing..");
     FAobjs[2].svg.attr("viewBox", FAobjs[0].svg.attr("viewBox"));
     FAobjs[2].svg.children().attr("transform", FAobjs[0].svg.children().attr("transform"));
-    $("#FA").html(FAobjs[2].svg);
+    $("#FA").html(FAobjs[2].svg).promise().then(function() {
+      updateScale($("#FA").children()[0]);
+    })
     $("#FA").delay(1000).promise().then(function() {
       queue.done.resolve();
     })
@@ -312,7 +452,9 @@ function animToNFAStart(FAobjs, queue) { // Starting animations: Rearrange and a
     if (!newedges) { // No new edges, no need to rearrange
       FAobjs[1].svg.attr("viewBox", FAobjs[0].svg.attr("viewBox"));
       FAobjs[1].svg.children().attr("transform", FAobjs[0].svg.children().attr("transform"));
-      $("#FA").html(FAobjs[1].svg);
+      $("#FA").html(FAobjs[1].svg).promise().then(function() {
+        updateScale($("#FA").children()[0]);
+      })
       fReplace();
     }
     else { // Has new edges, rearrange first
@@ -327,7 +469,9 @@ function animToNFAStart(FAobjs, queue) { // Starting animations: Rearrange and a
       queue.push(function() {
         FAobjs[1].svg.attr("viewBox", FAobjs[0].svg.attr("viewBox"));
         FAobjs[1].svg.children().attr("transform", FAobjs[0].svg.children().attr("transform"));
-        $("#FA").html(FAobjs[1].svg);
+        $("#FA").html(FAobjs[1].svg).promise().then(function() {
+          updateScale($("#FA").children()[0]);
+        })
         fAccepting().then(fReplace);
       })
       var str = "";
@@ -438,11 +582,24 @@ function replaceEdges(FAobjs, state, queue) { // Main animations: Replace the la
         }
         else { // Transition also contains other symbols, just change text
           $("text", edge[1]).text(edge[0].join(","));
+          var te = $("text", edge[1])[0];
+  				var index = te.innerHTML.indexOf("0");
+  				if (index != -1)
+  					te.innerHTML = te.innerHTML.substr(0, index) + "&lambda;" + te.innerHTML.substr(index+1);
         }
       }
     }
+    var showEdgeAndText = function(edge) {
+      return showEdge(edge[1], 1000).then(function() {
+        $("text", edge[1]).text(edge[0].join(",")); // Set new text of edge
+        var te = $("text", edge[1])[0];
+        var index = te.innerHTML.indexOf("0");
+        if (index != -1)
+          te.innerHTML = te.innerHTML.substr(0, index) + "&lambda;" + te.innerHTML.substr(index+1);
+      });
+    }
 
-		$.when(p1).then(function() {
+    $.when(p1).then(function() {
 			var p2;
       for (var to in FAobj.newedges[state]) {
         if (FAobj.newedges[state][to].length == 0)
@@ -456,9 +613,7 @@ function replaceEdges(FAobjs, state, queue) { // Main animations: Replace the la
     		$("text", edge[1]).attr("fill", "#000000");
         edge[0] = edge[0].concat(FAobj.newedges[state][to]);
         if (edge[0].length == FAobj.newedges[state][to].length) { // Transition didnt exist yet, show it
-          p2 = showEdge(edge[1], 1000).then(function() {
-            $("text", edge[1]).text(edge[0].join(",")); // Set new text of edge
-          });
+          p2 = showEdgeAndText(edge);
         }
       }
 			return p2;
@@ -492,14 +647,16 @@ function moveo(FAold, FAnew, unreachable) { // Animate an automaton to another a
       }
     }
 
-    $("text", FAnew.svg).attr("visibility", "hidden"); // Hide all text temporarily
+    $("#graph0 text", FAnew.svg).attr("visibility", "hidden"); // Hide all text temporarily
     var edges = $(".edge", FAnew);
     var states = $(".node", FAnew);
     $("text", FAold.svg).finish(); // Finish all ongoing text animations instantly
-    return $("text", FAold.svg).animate({
+    return $("#graph0 text", FAold.svg).animate({
         "opacity": 0
     }, 300).promise().then(function() {
-        $("#FA").html(FAnew.svg);
+        $("#FA").html(FAnew.svg).promise().then(function() { // Replace with actual DFAm
+          updateScale($("#FA").children()[0]);
+        })
         // Animate transform translate to new value
         var anim = document.createElementNS('http://www.w3.org/2000/svg', "animateTransform");
         var attrs = {
@@ -508,8 +665,8 @@ function moveo(FAold, FAnew, unreachable) { // Animate an automaton to another a
           type: "translate",
           begin: "indefinite",
           fill: "freeze",
-          from: FAold.svg.children().attr("transform").match(/translate\((.*)\)/)[1],
-          to: FAnew.svg.children().attr("transform").match(/translate\((.*)\)/)[1],
+          from: FAold.svg.children().eq(0).attr("transform").match(/translate\((.*)\)/)[1],
+          to: FAnew.svg.children().eq(0).attr("transform").match(/translate\((.*)\)/)[1],
           dur: "1s"
         }
         for (var k in attrs)
@@ -533,12 +690,13 @@ function moveo(FAold, FAnew, unreachable) { // Animate an automaton to another a
         anim2.beginElement();
         $("text", FAold.svg).css("opacity", 1)
         for (var i = 0; i < FAnew.states.length; i++) {
+            var oldi = newtoold[i];
             moveState(FAnew.states[i],
-              [$("ellipse", FAold.states[i]).attr("cx"), $("ellipse", FAold.states[i]).attr("cy")],
+              [$("ellipse", FAold.states[oldi]).attr("cx"), $("ellipse", FAold.states[oldi]).attr("cy")],
               [$("ellipse", FAnew.states[i]).attr("cx"), $("ellipse", FAnew.states[i]).attr("cy")], 1000);
             for (var to in FAnew.edges[i]) {
               var edgeNew = FAnew.edges[i][to];
-              var edgeOld = FAold.edges[newtoold[i]][newtoold[to]];
+              var edgeOld = FAold.edges[oldi][newtoold[to]];
               if (edgeOld != undefined && edgeNew != undefined && ArrayEquals(edgeOld[0], edgeNew[0]))
                 moveEdge(edgeNew[1],
                   [$("path", edgeOld[1]).attr("d"), $("polygon", edgeOld[1]).attr("points")],
@@ -549,7 +707,7 @@ function moveo(FAold, FAnew, unreachable) { // Animate an automaton to another a
           [$("path", FAold.start[0]).attr("d"), $("polygon", FAold.start[0]).attr("points")],
           [$("path", FAnew.start[0]).attr("d"), $("polygon", FAnew.start[0]).attr("points")], 1000);
         return $("#FA svg").delay(1000).promise().then(function() {
-					$("text", FAnew.svg).attr("visibility", "visible"); // Reshow text
+					$("#graph0 text", FAnew.svg).attr("visibility", "visible"); // Reshow text
           for (var i = 0; i < FAnew.edges.length; i++) { // Animate in text
             for (var to in FAnew.edges[i])
               if (FAnew.edges[i][to][0].length != 0)
@@ -647,11 +805,13 @@ function moveState(state, from, to, time) { // Animate state from one position t
 */
 function animToDFAStart(instance, queue) {
   $("#FA svg").animate({"width": "40%"}, 600).promise().then(function() {
-    updateScale();
+      updateScale($("#FA svg")[0]);
     //$("#FA").append("<div id='table_container'><table id='dfa_table'><thead><tr><th>New state nr.</th><th>Corresponding old states</th></tr></thead></table></div>");
     $("#FA").append("<div id='table_container'><div id='table_head'><div class='table_row'><div class='table_text_left'>New state nr.</div><div class='table_text_right'>Corresponding old states</div></div></div><div id='table_body'></div></div>");
     instance.FAobj[3].svg.css("width", "40%");
-    $("#FA").append(instance.FAobj[3].svg);
+    $("#FA").append(instance.FAobj[3].svg).promise().then(function() {
+      updateScale($("#FA svg")[1]);
+    });
     queue.push(function() {
       $("#table_body").append("<div class='table_row'><div class='table_text_left'>0</div><div class='table_text_right'>" + instance.DFA.statescor[0].join(",") + "</div></div>");
       showEdge(instance.FAobj[3].start[0], 300).then(function() {
@@ -676,7 +836,9 @@ function animToDFAMain(instance, queue, curstate, curto, shown) {
         $("#FA").children().eq(1).css("min-width", 0).animate({"width": 0}, 400).promise().then(function() {
           this.remove();
         })
-        $("#FA").children().eq(2).animate({"width": "100%"}, 400);
+        $("#FA").children().eq(2).animate({"width": "100%"}, 400).promise().then(function() {
+          updateScale(this[0]);
+        })
         queue.done.resolve();
       })
       queue.notify("Finished. Click animation step one last time when you are ready to get rid of the table");
@@ -771,14 +933,13 @@ function animToDFAMain(instance, queue, curstate, curto, shown) {
 function animToDFAmStart(instance, queue) { // Start of DFA to DFAm animation: move viewbox
   if (instance.DFA.states == instance.DFAm.states) { // DFA was already minimal
     $("#step_message").html("The automaton was already minimal. Continuing..");
-		$("#step_message").delay(3000).promise().then(function() { // Show message for 3 seconds
-			this.html("");
-		})
     var DFAobj = instance.FAobj[3];
     var DFAmobj = instance.FAobj[4];
     DFAmobj.svg.attr("viewBox", DFAobj.svg.attr("viewBox")); // Change viewbox & transform to new value
     DFAmobj.svg.children().attr("transform", DFAobj.svg.children().attr("transform"));
-    $("#FA").html(DFAmobj.svg); // Replace with actual DFAm
+    $("#FA").html(DFAmobj.svg).promise().then(function() { // Replace with actual DFAm
+      updateScale($("#FA").children()[0]);
+    })
     $("#FA").delay(1000).promise().then(function() {
       queue.done.resolve();
     })
@@ -795,8 +956,10 @@ function animToDFAmMain(instance, queue, curstate) { // Main DFA to DFAm animati
   if (curstate == instance.DFAm.states) { // Just did last state, finish
     DFAmobj.svg.attr("viewBox", DFAobj.svg.attr("viewBox")); // Change viewbox & transform to new value
     DFAmobj.svg.children().attr("transform", DFAobj.svg.children().attr("transform"));
-    $("text", DFAmobj.svg).css("opacity", 0).animate({"opacity": 1}, 200); // Animate in text
-    $("#FA").html(DFAmobj.svg); // Replace with actual DFAm
+    $("#graph0 text", DFAmobj.svg).css("opacity", 0).animate({"opacity": 1}, 200); // Animate in text
+    $("#FA").html(DFAmobj.svg).promise().then(function() { // Replace with actual DFAm
+      updateScale($("#FA").children()[0]);
+    })
     queue.done.resolve();
     return;
   }
@@ -804,7 +967,7 @@ function animToDFAmMain(instance, queue, curstate) { // Main DFA to DFAm animati
   for (var oldstate of instance.DFAm.statescor[curstate]) {
     var stateobj = DFAobj.states[oldstate];
     $("ellipse", stateobj).css("stroke", "#ff0000");
-    $("text", stateobj).css("stroke", "#ff0000");
+    $("text", stateobj).css("fill", "#ff0000");
     for (var oldto in DFAobj.edges[oldstate]) {
       var edge = DFAobj.edges[oldstate][oldto][1];
       $("path", edge).css("stroke", "#ff0000");
@@ -964,7 +1127,7 @@ function animToDFAmMain(instance, queue, curstate) { // Main DFA to DFAm animati
       for (var oldstate of instance.DFAm.statescor[curstate]) { // Make moved states and edges green
         var stateobj = DFAobj.states[oldstate];
         $("ellipse", stateobj).css("stroke", "#003300");
-        $("text", stateobj).css("stroke", "#003300");
+        $("text", stateobj).css("fill", "#003300");
         for (var oldto in DFAobj.edges[oldstate]) {
           var edge = DFAobj.edges[oldstate][oldto][1];
           $("path", edge).css("stroke", "#003300");
@@ -1001,4 +1164,175 @@ function rotateScale(x, y, angle, scale, origin) { // Rotate point (x,y) angle a
   newx += origin.x; // Translate origin point back
   newy += origin.y;
   return {"x": newx, "y": newy};
+}
+
+/*
+  Animation for checking if string matches regular expression
+*/
+function animCheckMatchStart(FAobj, matches, string, queue) { // Start by marking the starting state
+  queue.push(function() {
+    doubleGraph($("#graph0"), "#30cfc9", true); // Create a duplicate graph on top of the other one to be animated
+    var id = "#" + FAobj.start[0].attr("id") + "double";
+    var id2 = "#node" + (FAobj.start[1]+2) + "double";
+    showEdge($(id), 500).then(function() {
+      unshowEdge2($(id), 500);
+      var entry = $("polygon", $(id))[0].points[1];
+      showState($(id2), entry, 500).then(function() {
+        $(id2).delay(10).promise().then(function() {
+          animCheckMatchMain(FAobj, matches, string, 0, queue);
+        })
+      });
+    })
+  })
+  queue.notify("Go to the starting state");
+}
+
+function animCheckMatchFinish(FAobj, matches, lastentry, queue) { // Finished: Color the whole thing green/red if matched/not matched
+  queue.push(function() {
+    $("#graphdouble").remove(); // Remove blue double graph, create a new one
+    if (matches.matched)
+      doubleGraph($("#graph0"), "#31eb37", true); // Green
+    else
+      doubleGraph($("#graph0"), "#e61515", true); // Red
+    animCheckMatchMain2(FAobj, [matches.passed[matches.passed.length-1]], [], [lastentry], queue).then(function() {
+      if (matches.matched)
+        $("#step_message").html("The string matches the regular expression!");
+      else
+        $("#step_message").html("The string doesn't match the regular expression!");
+    })
+  })
+  if (matches.matched)
+    queue.notify("After reading the entire string, we ended up in an accepting state (" + matches.passed[matches.passed.length-1] + "). Therefore the string matches the regular expression");
+  else
+    queue.notify("After reading the entire string, we ended up in an non-accepting state (" + matches.passed[matches.passed.length-1] + "). Therefore the string does not match the regular expression");
+}
+
+function animCheckMatchMain(FAobj, matches, string, index, queue) {
+  queue.push(function() {
+    var nextstatenr = matches.passed[index+1];
+    var previousstatenr = matches.passed[index];
+    var nextstate = $("#node" + (nextstatenr+2) + "double");
+    var previousstate = $("#node" + (previousstatenr+2) + "double");
+    var edgeid = FAobj.edges[previousstatenr][nextstatenr][1].attr("id") + "double";
+    var edge = $("#" + edgeid);
+    var entry = $("polygon", edge)[0].points[1];
+    if (previousstatenr != nextstatenr)
+      unshowState(previousstate, $("path", edge)[0].getPointAtLength(0), 500);
+    showEdge(edge, 500).then(function() {
+      if (previousstatenr != nextstatenr)
+        showState(nextstate, entry, 500);
+      edge.delay(10).promise().then(function() {
+        unshowEdge2(edge, 500).then(function() {
+          nextstate.delay(10).promise().then(function() {
+            if (index == string.length-1) { // Just did last step, go to finishing animation
+              animCheckMatchFinish(FAobj, matches, $("polygon", edge)[0].points[1], queue);
+              return;
+            }
+            animCheckMatchMain(FAobj, matches, string, index+1, queue);
+          })
+        })
+      })
+    })
+  })
+  queue.notify("Read character " + string[index] + ". Follow edge to state " + matches.passed[index+1]);
+}
+
+function animCheckMatchMain2(FAobj, curstates, visited, entrypoints, queue) { // Recursive function from finish function: color green or red
+  var timeper = Math.max(Math.min(2000 / FAobj.states.length, 250), 125); // Animation time between 125 and 250 ms
+  var nextentrypoints = [];
+  var nextstates = [];
+  var p1, p2, p3;
+
+  for (var i in curstates) {
+    var id = "#node" + (curstates[i]+2) + "double";
+    p1 = showState($(id), entrypoints[i], timeper);
+  }
+  p2 = $.when(p1).then(function() {
+      for (var i in curstates) {
+        if (curstates[i] == FAobj.start[1]) {
+          var id = "#" + FAobj.start[0].attr("id") + "double";
+          p3 = showEdge2($(id), timeper);
+        }
+        for (var to in FAobj.edges[curstates[i]]) {
+          to = parseInt(to);
+          if (visited.includes(to))
+            continue;
+          var id = "#" + FAobj.edges[curstates[i]][to][1].attr("id") + "double";
+          p3 = showEdge($(id), timeper);
+          if (!curstates.includes(to) && !visited.includes(to) && !nextstates.includes(to)) {
+            nextstates.push(to);
+            nextentrypoints.push($("polygon", $(id))[0].points[1]);
+          }
+        }
+        for (var from in FAobj.edges) {
+          from = parseInt(from);
+          if (FAobj.edges[from][curstates[i]] == undefined || visited.includes(from) || curstates.includes(from))
+            continue;
+          var id = "#" + FAobj.edges[from][curstates[i]][1].attr("id") + "double";
+          p3 = showEdge2($(id), timeper);
+          if (!curstates.includes(from) && !visited.includes(from) && !nextstates.includes(from)) {
+            nextstates.push(from);
+            nextentrypoints.push($("path", $(id))[0].getPointAtLength(0));
+          }
+        }
+      }
+      return p3;
+  });
+
+  return $.when(p2).then(function() {
+      for (var i in curstates)
+        visited.push(curstates[i]);
+			if (nextstates.length == 0) {
+				queue.done.resolve(); // Notify queue that the animation is finished
+				return;
+			}
+      animCheckMatchMain2(FAobj, nextstates, visited, nextentrypoints, queue);
+  });
+}
+
+function doubleGraph(graph, color, invis) { // Make a duplicate of the graph with different ids and class names for animating over the other graph
+  var g = document.createElementNS('http://www.w3.org/2000/svg', "g");
+  g.setAttribute("id", "graphdouble");
+  g.setAttribute("transform", graph.attr("transform"));
+  graph.after(g);
+  var states = $(".node", graph);
+  var edges = $(".edge", graph);
+  for (var state of states) {
+    var statecopy = state.cloneNode(false);
+    statecopy.setAttribute("id", state.id + "double");
+    $(statecopy).removeClass("node").addClass("nodedouble");
+    var ellipsecopy = $("ellipse", state)[0].cloneNode(false);
+    ellipsecopy.setAttribute("fill", "none");
+    ellipsecopy.setAttribute("stroke", color);
+    ellipsecopy.setAttribute("stroke-width", "1.7px");
+    statecopy.appendChild(ellipsecopy);
+    if ($("ellipse", state).length == 2) {// Accepting state
+      var ellipsecopy2 = $("ellipse", state)[1].cloneNode(false);
+      ellipsecopy2.setAttribute("fill", "none");
+      ellipsecopy2.setAttribute("stroke", color);
+      ellipsecopy2.setAttribute("stroke-width", "1.7px");
+      statecopy.appendChild(ellipsecopy2);
+    }
+    g.appendChild(statecopy);
+  }
+  for (var edge of edges) {
+    var edgecopy = edge.cloneNode(false);
+    edgecopy.setAttribute("id", edge.id + "double");
+    $(edgecopy).removeClass("edge").addClass("edgedouble");
+    var pathcopy = $("path", edge)[0].cloneNode(false);
+    var polcopy = $("polygon", edge)[0].cloneNode(false);
+    pathcopy.setAttribute("stroke", color);
+    pathcopy.setAttribute("stroke-width", "1.7px");
+    pathcopy.lengthsaved = $("path", edge)[0].lengthsaved;
+    $(pathcopy).css('stroke-dasharray', pathcopy.lengthsaved);
+    if (invis)
+      $(pathcopy).css('stroke-dashoffset', pathcopy.lengthsaved);
+    polcopy.setAttribute("stroke", color);
+    polcopy.setAttribute("fill", color);
+    edgecopy.appendChild(pathcopy);
+    edgecopy.appendChild(polcopy);
+    g.appendChild(edgecopy);
+  }
+  if (invis) // Start off as invisible
+    $("polygon, ellipse", g).attr("visibility", "hidden")
 }

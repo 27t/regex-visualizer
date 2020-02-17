@@ -8,20 +8,22 @@
 		<script src="js/animation.js"></script>
 	<script src="js/back.js"></script>
 	<link rel="stylesheet" type="text/css" href="css/main.css">
+	<link rel="icon" type="image/png" href="css/icon.png"/>
 	<link href='https://fonts.googleapis.com/css?family=Lexend Deca' rel='stylesheet'>
 	<link href='https://fonts.googleapis.com/css?family=Mako' rel='stylesheet'>
 
-	<title>Regex Visualiser</title>
-  <meta name="description" content="Regex Visualiser">
+	<title>Regex Visualizer</title>
+  <meta name="description" content="Regex Visualizer">
 </head>
 
 <body>
 <div id="header">
 	<div id="help">
-
+		<button class="helpbutton">Help</button>
+		<button title="GitHub repo" onclick="window.open('https://github.com/27t/regex-visualizer','_blank');"><img src="css/github.png"/></button>
 	</div>
 	<div id="previous_step">
-		<div id="stepl" class="step">
+		<div id="stepl" class="step stepbutton">
 			<svg width="55px" height="80px" viewBox="0 0 55 80">
 				<path fill="none" stroke="#000000" stroke-width="4px" d="M 25 20 L 7 42 L 25 64"/>
 				<path class="buttonPath" fill="none" stroke="#0f6966" stroke-width="4px" d="M 25 20 L 7 42 L 25 64"/>
@@ -39,15 +41,20 @@
 			<path class="redPath" fill="none" stroke="#e61515" stroke-width="2px" d="M 101 1 L 201 1 L 201 41 L 101 41"/>
 		</svg>
 		<input id="regex" maxlength="256"></input>
+		<div class="beginbuttons"><div class="helpbutton helpbutton2">Help</div><div class="examplebutton">Example expression</div></div>
 		<button disabled id="convert">Convert</button>
 	</div>
 	<div id="next_step">
-		<div id="stepr" class="step">
+		<div id="stepr" class="step stepbutton">
 			<div class="steptext"></div>
 			<svg width="40px" height="80px" viewBox="0 0 40 80">
 				<path fill="none" stroke="#222233" stroke-width="4px" d="M 15 20 L 33 42 L 15 64"/>
 				<path class="buttonPath" fill="none" stroke="#0f6966" stroke-width="4px" d="M 15 20 L 33 42 L 15 64"/>
 			</svg>
+		</div>
+		<div id="stepmatch" class="step">
+			<input id="matchinput"></input>
+			<button class="stepbutton" id="matchbutton">Convert</button>
 		</div>
 	</div>
 	<div id="options">
@@ -62,9 +69,135 @@
 		</div>
 	</div>
 </div>
+<p id="error_message"></p>
 <p id="step_message"></p>
 <div id="line"></div>
 <div id="FA"></div>
+<div class="helpmenu">
+	<div class="helpheader">
+		<div class="helpexit">
+			<svg viewBox="0 0 50 50" width="15px" height="15px">
+				<line x1="5" y1="5" x2="45" y2="45" stroke="#000000" stroke-width="3px" stroke-linecap="round"></line>
+				<line x1="5" y1="45" x2="45" y2="5" stroke="#000000" stroke-width="3px" stroke-linecap="round"></line>
+			</svg>
+		</div>
+		<div class="helptitle">
+			Help menu
+		</div>
+	</div>
+	<div class="helpbody">
+		<div class="helptabs">
+			<button class="helpsectionbutton" section=".regexsec">Regular<br>expressions</button>
+			<button class="helpsectionbutton" section=".fsmsec">Finite state<br>machines</button>
+			<button class="helpsectionbutton" section=".fsm2sec">Types of<br>machines</button>
+			<button class="helpsectionbutton" section=".algsec">Algorithms</button>
+			<button class="helpsectionbutton" section=".featsec">Features</button>
+		</div>
+		<div class="helpcontent">
+			<div class="regexsec">
+				<h2>Regular expressions</h2>
+				<p>A regular expression is a sequence of characters that define a search pattern.
+				<br>
+				The regular expressions supported by this tool may contain:
+				<ul>
+					<li>Letters (<span class="regextext">a-z</span>, <span class="regextext">A-Z</span>)</li>
+					<li>The quantifiers <span class="regextext">*</span>, meaning 0 or more of the previous token, and <span class="regextext">+</span>, meaning 1 or more of the previous token</li>
+					<li>Alternation <span class="regextext">|</span>, meaning either the expression to the left or to the right of the <span class="regextext">|</span> has to match.</li>
+					<li>Parenthesis <span class="regextext">()</span>, to group things together</li>
+					<li>The number <span class="regextext">0</span>, meaning the empty string</li>
+					<li>Concatenation</li>
+				</ul>
+				</p>
+				<p>An example regular expression using these symbols is <span class="regextext">(ab|cd)+(e|0)</span>.
+				The strings that match this regular expression are exactly the strings that start with 1 or more instances of the strings <span class="regextext">ab</span> or <span class="regextext">cd</span>, and after that either the character <span class="regextext">e</span>, or nothing.
+				Some examples of strings that match this regular expression are <span class="regextext">ab</span>, <span class="regextext">cde</span>, <span class="regextext">abcde</span>, <span class="regextext">cdcdabcd</span>.</p>
+				<p>For more information about regular expressions, click <a target="_blank" href="https://www.regular-expressions.info/quickstart.html">here</a> (some different notation and way more possibilities, but the same concept)</p>
+			</div>
+			<div class="fsmsec">
+				<h2>Finite state machines</h2>
+				<p>
+					A finite state machine (also called a finite automaton) is a finite set of states <span class="regextext">N</span>, together with a transition function.
+					This transition function takes a state and a symbol as input, and returns a set of states, a subset of <span class="regextext">N</span>.
+					These returned states are the states that can be reached by starting from the given input state and reading the given input symbol.
+					The set of symbols an automaton contains is called the alphabet.
+				</p>
+				<p>
+					A finite state machine also has one starting state, the state we are in after reading no input symbols.
+					Finally, any of the states in <span class="regextext">N</span> can be accepting/final. If we end up in an accepting state after reading a string, we say that string is accepted by the machine.
+					This tool will create finite state machines, such that the accepted strings are those that exactly match the given regular expression.
+				</p>
+					Here states will be represented as circles, accepting states as double circles.
+					The transition function will be represented as directed edges between these states, meaning you can go from one state to another using the symbol in the edge's label.
+					The starting state will have an incoming edge from nowhere.
+				</p>
+			</div>
+			<div class="fsm2sec">
+				<h2>Types of finite state machines</h2>
+				<p>
+					We will define 4 different types of finite state machines, each with a more strict definition than the previous.
+				</p>
+				<ul>
+					<li><b>Nondeterministic finite automaton with &lambda;-transitions</b> (<span class="regextext">NFA-&lambda;</span>):<br>This is the most general, least strict type of state machine. Here, the transition function may return multiple states for any input state and symbol.
+				This means that in some cases we have a choice what state to go to next, given an input state and symbol (nondeterminism). The transition function is also allowed to return no states, in which case reading the input symbol from the input state is not possible.
+				The state machine may also contain &lambda;-transitions. These transitions (edges) are labeled &lambda; and allow you to freely move from one state to another without reading any input symbols.</li>
+				<li><b>Nondeterministic finite automaton</b> (<span class="regextext">NFA</span>):<br>This type is the same as the NFA-&lambda;, except that &lambda;-transitions are not allowed.</li>
+				<li><b>Deterministic finite automaton</b> (<span class="regextext">DFA</span>):<br>In deterministic finite automata, the transition function has to return exactly one state for each input state and symbol in the alphabet.
+				This means that for every string of characters in the alphabet, there is one and at most one path you can follow.</li>
+				<li><b>Minimal deterministic finite automaton</b> (<span class="regextext">DFAm</span>):<br>We call a DFA minimal if there is no other DFA with less states that accepts the exact same strings as the original DFA.
+				It can be proven that for each DFA, there exists a unique DFAm, up to the naming of the states.</li>
+				</ul>
+			</div>
+			<div class="algsec">
+				<h2>Algorithms</h2>
+				<p>
+					To convert a regular expression to a <span class="regextext">DFAm</span>, we use 4 different algorithms, each resulting in the next type from the previous section.
+					Here follows a brief overview of all the algorithms, but for more in depth explanations, I used the book "Introduction to Languages and the Theory of Computation" by John C. Martin.
+				</p>
+				<p>
+					The first algorithm converts a regular expression to a <span class="regextext">NFA-&lambda;</span>. This is done using a bottom-up construction.
+					We start with finite state machines for a single character, and 3 template state machines for the 3 main operations (alternation, concatenation and the quantifiers).
+					We then substitute the simple state machines into the template machine we need, until we have a finite state machine for the entire regular expression.
+					Finally, some basic simplification is done to make the state machine more readable.
+				</p>
+				<p>
+					The second algorithm converts a <span class="regextext">NFA-&lambda;</span> to a <span class="regextext">NFA</span> by replacing the &lambda;-transitions with normal transitions.
+					We start off by determining the &lambda;-closure of each state: The set of states that can be reached from that state using only &lambda;-transitions. Next, we make any state whose &lambda;-closure contains an accepting state also accepting.
+					Then, for every state <span class="regextext">p</span> and for every state <span class="regextext">r</span> in the &lambda;-closure of <span class="regextext">p</span>, we duplicate all the normal outgoing edges from <span class="regextext">r</span>, and make their starting point <span class="regextext">p</span>.
+					Finally, we remove all the &lambda;-transitions, and if during this process any of the states have become unreachable from the starting state, we remove them.
+				</p>
+				<p>
+					The third algorithm converts a <span class="regextext">NFA</span> to a <span class="regextext">DFA</span> using an algorithm called "subset construction".
+					We start with a new starting state that corresponds to the old starting state. We then determine for each of the symbols in the alphabet, the set of states can be reached from the starting state using that symbol.
+					If there is not yet a new state corresponding to this old set of states, we create this new state and add an edge from the starting state to this new state with the given symbol.
+					If there is already a new state corresponding to this old set of states, we simply add an edge from the starting state to this state with the given symbol.
+					We continue this process for each of the newly created states, until all of the new states have an outgoing edge for every symbol in the alphabet.
+					A new state in this DFA is accepting, if any of the corresponding old states were accepting in the NFA.
+				</p>
+				<p>
+					The last algorithm converts a <span class="regextext">DFA</span> to a <span class="regextext">DFAm</span> by minimizing it.
+					This is done by determining which of the states of the DFA are equivalent, and merging them. Two states are called equivalent,
+					if the strings that cause you to end up in an accepting state starting from that state, are exactly the same for both states.
+					To determine which states are equivalent, we start off by marking each pair of states as equivalent, and step by step mark pairs as not equivalent if we find proof they are not.
+					In the first step, we mark every pair of states, where one of the states is accepting and the other one is non-accepting, as non-equivalent, since for example the empty string causes one of them to end up in an accepting state, but not the other one.
+					In each of the next steps, we take a pair of states that is marked equivalent, and for each symbol in the alphabet, we check if the new pair of states that we get from following the edge with that symbol from the starting pair, is marked as equivalent.
+					If this new pair is marked as not-equivalent, we have found a symbol that leads the original pair of states to two non-equivalent states. This implies that the original pair of states is also not equivalent, and so we mark it as such.
+					We do this until we cannot mark any more pairs as non-equivalent. Finally, we merge the states that have been found to be equivalent, and we are done.
+				</p>
+			</div>
+			<div class="featsec">
+				<h2>Features</h2>
+				<ul>
+					<li>Convert a regular expression into a <span class="regextext">DFAm</span>, using custom animations</li>
+					<li>This gives a very visual way to see what strings match the regular expression and what strings don't</li>
+					<li>Smooth automatic animations, or animations in steps, where you can better see what is going on</li>
+					<li>Hover over any of the states, to see an infobox with some example strings that can end up in that state</li>
+					<li>Pan and zoom the state machine around by dragging the screen and using your mousewheel, to get a better look at large and complicated finite state machines</li>
+					<li>A semi-in-depth help menu you are looking at right now!</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+</div>
 </body>
-
+<!--This tool is used to visualize which strings exactly match a regular expression and which don't, using finite state machines.-->
 <script> </script>

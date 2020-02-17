@@ -440,7 +440,8 @@ function subsetConstruction(NFA) { // Convert a NFA to DFA by using the subset c
 		statescor: []										 // Array that keeps track of what old states correspond to a new state
 	}
 	DFA.statescor[0] = [NFA.start]; // The only state corresponding to the new starting state is the old starting state
-
+	if (NFA.accepting.has(NFA.start))
+		DFA.accepting.add(0);
 	var reachable = []; // States reachable from a current list of states using a certain symbol
 	for (var i = 0; i < DFA.states; i++) {
 		DFA.alphabet.forEach(function(symbol) {
@@ -563,15 +564,69 @@ function minimizeDFA(DFA) { // Minimize a DFA by computing which states are equi
 /*
 	General functions
 */
-function generateAutomata(regex) {
-	instance = {}
+function generateAutomata(regex) { // Create all the various automata
+	instance = {};
 	instance.NFAl = trivialStates(constructNFAl(parseRegex(regex_global)));
 	instance.NFATransition = removelTransitions(deepCopyAutomaton(instance.NFAl));
 	instance.NFA = removeUnreachable(deepCopyAutomaton(instance.NFATransition), instance.NFATransition);
 	instance.DFA = subsetConstruction(instance.NFA);
 	instance.DFAm = minimizeDFA(instance.DFA);
+	generateExampleStrings(instance);
 	instance.FAobj = [];
 	instance.FAstrings = [];
+}
+
+function generateExampleStrings(instance) { // Generate some example strings for each state in each automaton
+	for (var FA of [instance.NFAl, instance.NFA, instance.DFA, instance.DFAm]) {
+		FA.examplestrings = [];
+		for (var i = 0; i < FA.states; i++)
+			FA.examplestrings[i] = [];
+		FA.examplestrings[FA.start].push(""); // The starting state contains the empty string (lambda)
+		var indexes = [];
+		indexes[FA.start] = 0;
+		nextExampleStrings(FA, [FA.start], indexes);
+	}
+}
+
+function nextExampleStrings(FA, states, startingindexes) {
+	var oldlength = [];
+	for (var i = 0; i < FA.states; i++)
+		oldlength[i] = FA.examplestrings[i].length;
+	for (var state of states) {
+		for (var i = startingindexes[state]; i < oldlength[state]; i++) {
+			for (var symbol in FA.edges[state]) {
+				if (FA.edges[state][symbol] == undefined)
+					continue;
+				FA.edges[state][symbol].forEach(function(to) {
+					if (FA.examplestrings[to].length == 25) // Allow a maximum of 25 example strings per state
+						return;
+					if (symbol != '0' && !FA.examplestrings[to].includes(FA.examplestrings[state][i] + symbol))
+						FA.examplestrings[to].push(FA.examplestrings[state][i] + symbol);
+					else if (symbol == '0' && !FA.examplestrings[to].includes(FA.examplestrings[state][i]))
+						FA.examplestrings[to].push(FA.examplestrings[state][i]);
+				})
+			}
+		}
+	}
+	var newstates = []; // States to be checked next round
+	for (var i = 0; i < FA.states; i++) {
+		if (FA.examplestrings[i].length > oldlength[i]) // New strings have been added, check next round
+			newstates.push(i);
+	}
+	if (newstates.length == 0) { // No new strings added this round, stop
+		return;
+	}
+	nextExampleStrings(FA, newstates, oldlength);
+}
+
+function stringMatches(DFA, string) { // Check if string is accepted by the DFA, return array of passed states
+	var passed = [DFA.start];
+	var cur = DFA.start;
+	for (var i = 0; i < string.length; i++) {
+		cur = DFA.edges[cur][string[i]].values().next().value;
+		passed.push(cur);
+	}
+	return {"matched": DFA.accepting.has(cur), "passed": passed};
 }
 
 function addTransition(FA, from, to, symbol) {
