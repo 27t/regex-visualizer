@@ -72,7 +72,7 @@ function skipAnimation(step, queue) {
   })
 }
 
-// Small intro animation
+// Small intro animation (moving header up, not start popup path)
 function introAnimation() {
     $(".helpbutton2, .examplebutton").css("border", "none")
     $(".beginbuttons").animate({
@@ -109,6 +109,47 @@ function introAnimation() {
         }, 200).promise();
     });
 }
+
+function startPopupAnimation() { // Start popup animation 1, 2, start
+  $("#pa1").animate({
+    "stroke-dashoffset": "0"
+  }, 600).promise().then(function() {
+  $("#an1")[0].beginElement();
+  $("#popupanim").delay(200).promise().then(function() {
+  $("#cp11, #cp12").animate({
+    "stroke-dashoffset": "0"
+  }, 400).promise().then(function() {
+  $("#t1").animate({"opacity": 1}, 300);
+  $("#pa2").animate({
+    "stroke-dashoffset": "0"
+  }, 600).promise().then(function() {
+  $("#an2")[0].beginElement();
+  $("#popupanim").delay(200).promise().then(function() {
+  $("#cp21, #cp22").animate({
+    "stroke-dashoffset": "0"
+  }, 400).promise().then(function() {
+  $("#t2").animate({"opacity": 1}, 300);
+  $("#pa3").animate({
+    "stroke-dashoffset": "0"
+  }, 600).promise().then(function() {
+  $("#an3")[0].beginElement();
+  $("#popupanim").delay(200).promise().then(function() {
+    $("#cp31, #cp32").animate({
+      "stroke-dashoffset": "0"
+    }, 700).promise().then(function() {
+  $("#t3").animate({"opacity": 1}, 300);
+  $("#popupanim").css("pointer-events", "all");    
+  })
+  })
+  })
+  })
+  })
+  })
+  })
+  })
+  })
+}
+
 
 /*
 	Functions for showing an FA (animating in)

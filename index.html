@@ -20,7 +20,7 @@
 <div id="header">
 	<div id="help">
 		<button class="helpbutton">Help</button>
-		<button title="GitHub repo" onclick="window.open('https://github.com/27t/regex-visualizer','_blank');"><img src="css/github.png"/></button>
+		<button class="githubbutton" title="GitHub repo" onclick="window.open('https://github.com/27t/regex-visualizer','_blank');"><img src="css/github.png"/></button>
 	</div>
 	<div id="previous_step">
 		<div id="stepl" class="step stepbutton">
@@ -53,8 +53,13 @@
 			</svg>
 		</div>
 		<div id="stepmatch" class="step">
-			<input id="matchinput"></input>
-			<button class="stepbutton" id="matchbutton">Convert</button>
+			<div>
+				Check if string matches regular expression:
+			</div>
+			<div>
+				<input id="matchinput"></input>
+				<button class="stepbutton" id="matchbutton">Check Match</button>
+			</div>
 		</div>
 	</div>
 	<div id="options">
@@ -73,7 +78,7 @@
 <p id="step_message"></p>
 <div id="line"></div>
 <div id="FA"></div>
-<div class="helpmenu">
+<div class="helpmenu bigbox">
 	<div class="helpheader">
 		<div class="helpexit">
 			<svg viewBox="0 0 50 50" width="15px" height="15px">
@@ -138,11 +143,11 @@
 				</p>
 				<ul>
 					<li><b>Nondeterministic finite automaton with &lambda;-transitions</b> (<span class="regextext">NFA-&lambda;</span>):<br>This is the most general, least strict type of state machine. Here, the transition function may return multiple states for any input state and symbol.
-				This means that in some cases we have a choice what state to go to next, given an input state and symbol (nondeterminism). The transition function is also allowed to return no states, in which case reading the input symbol from the input state is not possible.
+				This means that in some cases we have a choice what state to go to next, given an input state and symbol (nondeterminism). In the visual representation used here, this means there are multiple outgoing edges from the input state with the same symbol. The transition function is also allowed to return no states, in which case reading the input symbol from the input state is not possible. In the visual representation used here, this means there are no outgoing edges from the input state with the input symbol.
 				The state machine may also contain &lambda;-transitions. These transitions (edges) are labeled &lambda; and allow you to freely move from one state to another without reading any input symbols.</li>
 				<li><b>Nondeterministic finite automaton</b> (<span class="regextext">NFA</span>):<br>This type is the same as the NFA-&lambda;, except that &lambda;-transitions are not allowed.</li>
 				<li><b>Deterministic finite automaton</b> (<span class="regextext">DFA</span>):<br>In deterministic finite automata, the transition function has to return exactly one state for each input state and symbol in the alphabet.
-				This means that for every string of characters in the alphabet, there is one and at most one path you can follow.</li>
+				This means that for every string of characters in the alphabet, there is one and at most one path you can follow. In the visual representation used here, this means that every state has exactly one outgoing edge for each symbol in the alphabet.</li>
 				<li><b>Minimal deterministic finite automaton</b> (<span class="regextext">DFAm</span>):<br>We call a DFA minimal if there is no other DFA with less states that accepts the exact same strings as the original DFA.
 				It can be proven that for each DFA, there exists a unique DFAm, up to the naming of the states.</li>
 				</ul>
@@ -189,15 +194,45 @@
 				<ul>
 					<li>Convert a regular expression into a <span class="regextext">DFAm</span>, using custom animations</li>
 					<li>This gives a very visual way to see what strings match the regular expression and what strings don't</li>
-					<li>Smooth automatic animations, or animations in steps, where you can better see what is going on</li>
+					<li>Smooth automatic animations, or animations in steps, with information about the current step</li>
 					<li>Hover over any of the states, to see an infobox with some example strings that can end up in that state</li>
-					<li>Pan and zoom the state machine around by dragging the screen and using your mousewheel, to get a better look at large and complicated finite state machines</li>
+					<li>Pan and zoom the state machine around by dragging the screen and using your mousewheel, to get a better look at large and complicated state machines</li>
 					<li>A semi-in-depth help menu you are looking at right now!</li>
 				</ul>
 			</div>
 		</div>
 	</div>
 </div>
+<div id="startpopup" class="bigbox">
+	<p class="pop1">Welcome!</p>
+	<p class="pop2">This tool is used to visualize which strings exactly match<br>a regular expression and which don't, using finite state machines</p>
+	<p class="pop3">You can start playing around now by pressing "Example expression" or by typing in your own regular expression</p>
+	<p class="pop4">Press the "help" button at any time for more information about the application</p>
+	<svg id="popupanim" width="600px" height="230px" viewBox="0 0 600 230">
+		<path id="pa1" stroke-width="2px" stroke="#000000" d="M10,35L245,35"/>
+		<polygon id="po1">
+			<animate id="an1" attributeName="points" attributeType="XML" begin="indefinite" dur="200ms" fill="freeze" from="245,27 245,27 245,43 245,43 245,27" to="245,27 270,35 270,35 245,43 245,27"/>
+		</polygon>
+		<path id="cp11" stroke-width="2px" stroke="#000000" fill="none" d="M270,35 A30 30 0 0 0 330 35"/>
+		<path id="cp12" stroke-width="2px" stroke="#000000" fill="none" d="M270,35 A30 30 0 1 1 330 35"/>
+		<text id="t1" font-size="30" text-anchor="middle" x="300" y="45">1</text>
+		<path id="pa2" stroke-width="2px" stroke="#000000" fill="none" d="M330,35 L550,35 A40 40 0 0 1 550 115 L355,115"></path>
+		<polygon id="po2">
+			<animate id="an2" attributeName="points" attributeType="XML" begin="indefinite" dur="200ms" fill="freeze" from="355,107 355,107 355,123 355,123 355,107" to="355,107 330,115 330,115 355,123 355,107"/>
+		</polygon>
+		<path id="cp21" stroke-width="2px" stroke="#000000" fill="none" d="M330,115 A30 30 0 0 0 270 115"/>
+		<path id="cp22" stroke-width="2px" stroke="#000000" fill="none" d="M330,115 A30 30 0 1 1 270 115"/>
+		<text id="t2" font-size="30" text-anchor="middle" x="300" y="125">2</text>
+		<path id="pa3" stroke-width="2px" stroke="#000000" fill="none" d="M270,115 L50,115 A40 40 0 0 0 50 195 L175,195"></path>
+		<polygon id="po3">
+			<animate id="an3" attributeName="points" attributeType="XML" begin="indefinite" dur="200ms" fill="freeze" from="175,203 175,203 175,187 175,187 175,203" to="175,203 200,195 200,195 175,187 175,203"/>
+		</polygon>
+		<path id="cp31" stroke-width="2px" stroke="#000000" fill="none" d="M200,195 A30 30 0 0 1 230 165 L370,165 A30 30 0 0 1 400 195"/>
+		<path id="cp32" stroke-width="2px" stroke="#000000" fill="none" d="M200,195 A30 30 0 0 0 230 225 L370,225 A30 30 0 0 0 400 195"/>
+		<text id="t3" font-size="30" text-anchor="middle" x="300" y="205">Start!</text>
+		<rect id="startrect" stroke-width="2px" fill="rgba(0,0,0,0)" x="200" y="165" width="200px" height="60px" rx="30"/>
+	</svg>
+</div>
 </body>
-<!--This tool is used to visualize which strings exactly match a regular expression and which don't, using finite state machines.-->
+
 <script> </script>

@@ -31,6 +31,9 @@ $(document).ready(function(){
 		$("#regex").val("a*(b+a|de*)*a*"); // Example regular expression
 		$("#regex").trigger("input");
 	})
+	$("#startrect").click(function() {
+		$("#startpopup").css("display", "none");
+	})
 	$("#options_check").change(function() {
 		auto_animation = this.checked;
 		if (auto_animation) {
@@ -40,7 +43,9 @@ $(document).ready(function(){
 		else
 			$("#options_button").attr("disabled", false);
 	});
-
+	$("#startpopup").animate({"opacity": 1}, 500).promise().then(function() { // Animate in starting popup
+		startPopupAnimation(); // Popup path animation
+	});
 	$("#regex").trigger("input"); // If the input has been autofilled, check if the expression is correct at the start
 });
 
@@ -54,7 +59,7 @@ function browserTest() {
 		return true;
 	}
 	catch(e) {
-		var errstring = "The browser you are using does not support some svg features this site relies on. This site is built for desktops, and has been tested on the latest versions of Chrome, Firefox, Safari and Opera";
+		var errstring = "The browser you are using does not support some svg features this site relies on. This site is built for desktops and we recommended using Chrome, but Firefox, Safari and Opera should also work.";
 		alert(errstring);
 		$("body").html(errstring);
 		return false;
@@ -272,6 +277,12 @@ function loadSvgInteraction() {
 		this.viewBox.baseVal.x = mouseX - (mouseX-this.viewBox.baseVal.x)*zoomscale;
 		this.viewBox.baseVal.y = mouseY - (mouseY-this.viewBox.baseVal.y)*zoomscale;
 		updateScale(this);
+	})
+
+	$(window).on("resize", function(e) { // Update scale when window gets resized
+		var FAs = $("#FA svg");
+		for (var FA of FAs)
+			updateScale(FA);
 	})
 
 	$(document).on("mouseenter mousemove", ".node", function(e) {
@@ -626,6 +637,7 @@ function showStepButtons(step) {
 	var textl = "", textr= "";
 	switch (step) {
 		case 1:
+			textl = "Replay<br>animation";
 			textr = "Remove<br>&lambda;-transitions";
 			break;
 		case 2:
@@ -650,11 +662,9 @@ function showStepButtons(step) {
 		$("#stepmatch .stepbutton").attr("step", 4);
 		$("#stepmatch").css({"display": "block", "opacity": 0}).animate({"opacity": 1}, 800);
 	}
-	if (step > 1) {
-		$("#stepl .steptext").html(textl);
-		$("#stepl").attr("step", step+4);
-		$("#stepl").css({"display": "flex", "opacity": 0}).animate({"opacity": 1}, 800);
-	}
+	$("#stepl .steptext").html(textl);
+	$("#stepl").attr("step", step+4);
+	$("#stepl").css({"display": "flex", "opacity": 0}).animate({"opacity": 1}, 800);
 	$("#convert").attr("disabled", false).animate({"opacity": 1}, 800);
 }
 
@@ -687,6 +697,7 @@ function clickStepButton() {
 		case "4":
 			checkMatch(string).then(function() { showStepButtons(4); });
 			break;
+		case "5":
 		case "6":
 			showFAWrap(0).then(function() { showStepButtons(1); });
 			break;
